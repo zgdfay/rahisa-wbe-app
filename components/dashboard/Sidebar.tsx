@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -48,6 +49,22 @@ const menuItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [role, setRole] = useState<string>("admin"); // Default to admin while loading
+
+  useEffect(() => {
+    const session = localStorage.getItem("user_session");
+    if (session) {
+      const { role } = JSON.parse(session);
+      setRole(role || "admin");
+    }
+  }, []);
+
+  const filteredMenuItems = menuItems.filter((item) => {
+    if (role === "cashier") {
+      return ["/sales", "/product"].includes(item.href);
+    }
+    return true; // Admin sees all
+  });
 
   const handleLogout = () => {
     localStorage.removeItem("user_session");
@@ -80,7 +97,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-2">
-        {menuItems.map((item) => {
+        {filteredMenuItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link

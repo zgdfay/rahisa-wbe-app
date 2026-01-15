@@ -18,38 +18,65 @@ export function LoginForm() {
   const router = useRouter();
 
   // Dummy Credentials
-  const AUTH_CREDENTIALS = {
+  const ADMIN_CREDENTIALS = {
     email: "admin@rahisa.com",
-    password: "admin", // Simple password for demo
+    password: "admin",
+  };
+
+  const CASHIER_CREDENTIALS = {
+    email: "kasir@rahisa.com",
+    password: "kasir",
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
+    let role = "";
+    let isValid = false;
+
     // Validate Credentials
     if (
-      email === AUTH_CREDENTIALS.email &&
-      password === AUTH_CREDENTIALS.password
+      email === ADMIN_CREDENTIALS.email &&
+      password === ADMIN_CREDENTIALS.password
     ) {
+      role = "admin";
+      isValid = true;
+    } else if (
+      email === CASHIER_CREDENTIALS.email &&
+      password === CASHIER_CREDENTIALS.password
+    ) {
+      role = "cashier";
+      isValid = true;
+    }
+
+    if (isValid) {
       // Set session (LocalStorage for Client UI)
       localStorage.setItem(
         "user_session",
         JSON.stringify({
           email: email,
+          role: role,
           isLoggedIn: true,
           loginTime: new Date().toISOString(),
         })
       );
 
       // Set Cookie (For Middleware Protection)
-      // Expires in 1 day
       const oneDay = 24 * 60 * 60 * 1000;
       const expirationDate = new Date(Date.now() + oneDay).toUTCString();
       document.cookie = `auth_token=valid_token; expires=${expirationDate}; path=/; SameSite=Lax`;
 
-      toast.success("Login Berhasil!");
-      router.push("/dashboard");
+      toast.success(
+        `Login Berhasil sebagai ${role === "admin" ? "Admin" : "Kasir"}!`
+      );
+
+      // Redirect based on role
+      if (role === "cashier") {
+        router.push("/sales");
+      } else {
+        router.push("/dashboard");
+      }
     } else {
       toast.error("Email atau Password salah!");
       setIsLoading(false);
