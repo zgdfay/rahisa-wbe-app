@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { DashboardBanner } from "./components/DashboardBanner";
 import { DashboardStats } from "./components/DashboardStats";
 import { DashboardChart } from "./components/DashboardChart";
-import { AlertTriangle, CheckCircle2, TrendingUp } from "lucide-react";
+import { CheckCircle2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Transaction {
@@ -66,29 +66,16 @@ export default function DashboardPage() {
             Aktivitas Terbaru
           </h2>
           <div className="space-y-2 mb-2">
-            <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-4 h-4 text-red-600" />
-              </div>
-              <div>
-                <p className="text-[13px] font-bold text-red-900">
-                  Stok Tepung Kritis
-                </p>
-                <p className="text-[11px] text-red-700 font-medium">
-                  Sisa 5kg (Batas aman: 20kg)
-                </p>
-              </div>
-            </div>
             <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-start gap-3">
               <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               </div>
               <div>
                 <p className="text-[13px] font-bold text-emerald-900">
-                  Kualitas Roti Stabil
+                  Penjualan Stabil
                 </p>
                 <p className="text-[11px] text-emerald-700 font-medium">
-                  98.5% produk standar hari ini
+                  Performa penjualan hari ini sesuai target
                 </p>
               </div>
             </div>
@@ -101,7 +88,7 @@ export default function DashboardPage() {
                   Prediksi Besok Tinggi
                 </p>
                 <p className="text-[11px] text-primary-700 font-medium">
-                  Persiapkan bahan +20% dari biasa
+                  Persiapkan stok produk +20% dari biasa
                 </p>
               </div>
             </div>

@@ -1,14 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -25,24 +19,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Attempting to use shadcn tabs if available, otherwise will fallback to buttons in next step if error
-import {
-  Download,
-  FileText,
-  TrendingUp,
-  Package,
-  BarChart3,
-  Printer,
-} from "lucide-react";
+import { Download, Upload, TrendingUp, BarChart3, Printer } from "lucide-react";
 import { toast } from "sonner";
 
 import { Transaction } from "../sales/components/types";
-import {
-  Ingredient,
-  getStockStatus,
-  getStatusColor,
-  getStatusLabel,
-} from "../inventory/components/types";
 
 // Helper to format currency
 const formatRupiah = (number: number) => {
@@ -55,21 +35,15 @@ const formatRupiah = (number: number) => {
 
 export default function ReportPage() {
   const [salesData, setSalesData] = useState<Transaction[]>([]);
-  const [stockData, setStockData] = useState<Ingredient[]>([]);
   const [activeTab, setActiveTab] = useState("sales");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Load Sales Data
     const savedSales = localStorage.getItem("sales_transactions");
     if (savedSales) {
       setSalesData(JSON.parse(savedSales));
-    }
-
-    // Load Stock Data
-    const savedStock = localStorage.getItem("inventory_stock");
-    if (savedStock) {
-      setStockData(JSON.parse(savedStock));
     }
   }, []);
 
@@ -78,12 +52,11 @@ export default function ReportPage() {
   const availableMonths = Array.from(
     new Set(
       salesData.map((t) => {
-        // Assuming date format YYYY-MM-DD
         const date = new Date(t.date);
         return date.toLocaleString("id-ID", { month: "long", year: "numeric" });
-      })
-    )
-  ).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()); // Newest first
+      }),
+    ),
+  ).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
   // 2. Filter sales based on selected month
   const filteredSales =
@@ -105,15 +78,12 @@ export default function ReportPage() {
       return;
     }
 
-    // Generate Header
     const headers = Object.keys(data[0]).join(",");
-
-    // Generate Rows
     const rows = data
       .map((obj) =>
         Object.values(obj)
           .map((val) => (typeof val === "string" ? `"${val}"` : val))
-          .join(",")
+          .join(","),
       )
       .join("\n");
 
@@ -143,23 +113,99 @@ export default function ReportPage() {
       dataToExport,
       `laporan_penjualan_${
         selectedMonth === "all" ? "semua" : selectedMonth.replace(" ", "_")
-      }.csv`
+      }.csv`,
     );
   };
 
-  const handleExportStock = () => {
-    const dataToExport = stockData.map((i) => ({
-      Nama: i.name,
-      Stok: i.currentStock,
-      Unit: i.unit,
-      Status: getStockStatus(i.currentStock, i.minStock),
-      MinStock: i.minStock,
-      MaxStock: i.maxStock,
-    }));
-    downloadCSV(
-      dataToExport,
-      `laporan_stok_${new Date().toISOString().split("T")[0]}.csv`
-    );
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const lines = text.trim().split("\n");
+
+        if (lines.length < 2) {
+          toast.error("File CSV kosong atau tidak valid");
+          return;
+        }
+
+        // Parse header
+        const headers = lines[0]
+          .split(",")
+          .map((h) => h.trim().replace(/"/g, "").toLowerCase());
+
+        // Map header names to Transaction fields
+        const headerMap: Record<string, string> = {
+          id: "id",
+          tanggal: "date",
+          jam: "time",
+          produk: "productName",
+          qty: "quantity",
+          total: "totalPrice",
+          status: "status",
+        };
+
+        const mappedHeaders = headers.map((h) => headerMap[h] || h);
+
+        // Parse rows
+        const newTransactions: Transaction[] = [];
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i]
+            .split(",")
+            .map((v) => v.trim().replace(/^"|"$/g, ""));
+          if (values.length < mappedHeaders.length) continue;
+
+          const row: any = {};
+          mappedHeaders.forEach((header, idx) => {
+            row[header] = values[idx];
+          });
+
+          // Convert types
+          newTransactions.push({
+            id: row.id || `import-${Date.now()}-${i}`,
+            date: row.date || "",
+            time: row.time || "",
+            productId:
+              row.productId ||
+              row.productName?.toLowerCase().replace(/\s+/g, "-") ||
+              "",
+            productName: row.productName || "",
+            quantity: Number(row.quantity) || 0,
+            totalPrice: Number(row.totalPrice) || 0,
+            status: (["completed", "pending", "cancelled"].includes(row.status)
+              ? row.status
+              : "completed") as Transaction["status"],
+          });
+        }
+
+        if (newTransactions.length === 0) {
+          toast.error("Tidak ada data valid ditemukan di file CSV");
+          return;
+        }
+
+        // Merge with existing data
+        const existingIds = new Set(salesData.map((t) => t.id));
+        const uniqueNew = newTransactions.filter((t) => !existingIds.has(t.id));
+        const merged = [...salesData, ...uniqueNew];
+
+        setSalesData(merged);
+        localStorage.setItem("sales_transactions", JSON.stringify(merged));
+
+        toast.success(
+          `Berhasil import ${uniqueNew.length} data penjualan!${uniqueNew.length < newTransactions.length ? ` (${newTransactions.length - uniqueNew.length} data duplikat diabaikan)` : ""}`,
+        );
+      } catch (err) {
+        console.error(err);
+        toast.error("Gagal membaca file CSV. Pastikan format file benar.");
+      }
+    };
+    reader.readAsText(file);
+
+    // Reset input so the same file can be re-imported
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handlePrint = () => {
@@ -174,10 +220,6 @@ export default function ReportPage() {
   const totalSoldItems = filteredSales
     .filter((t) => t.status === "completed")
     .reduce((acc, curr) => acc + curr.quantity, 0);
-
-  const lowStockCount = stockData.filter(
-    (i) => getStockStatus(i.currentStock, i.minStock) !== "safe"
-  ).length;
 
   return (
     <div className="space-y-8 animate-fade-in p-1 print:p-0">
@@ -236,24 +278,34 @@ export default function ReportPage() {
             Cetak PDF
           </Button>
           {activeTab === "sales" && (
-            <Button
-              onClick={handleExportSales}
-              className="gap-2 cursor-pointer text-white shadow-lg shadow-primary-500/20"
-            >
-              <Download className="w-4 h-4" />
-              Export Penjualan (.csv)
-            </Button>
-          )}
-          {activeTab === "stock" && (
-            <Button
-              onClick={handleExportStock}
-              className="gap-2 cursor-pointer text-white shadow-lg shadow-primary-500/20"
-            >
-              <Download className="w-4 h-4" />
-              Export Stok (.csv)
-            </Button>
+            <>
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                variant="outline"
+                className="gap-2 cursor-pointer bg-white"
+              >
+                <Upload className="w-4 h-4" />
+                Import CSV
+              </Button>
+              <Button
+                onClick={handleExportSales}
+                className="gap-2 cursor-pointer text-white shadow-lg shadow-primary-500/20"
+              >
+                <Download className="w-4 h-4" />
+                Export Penjualan (.csv)
+              </Button>
+            </>
           )}
         </div>
+
+        {/* Hidden file input for CSV import */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept=".csv"
+          onChange={handleImportCSV}
+          className="hidden"
+        />
       </div>
 
       {/* Controls (Month Filter) */}
@@ -290,15 +342,6 @@ export default function ReportPage() {
             </Select>
           </div>
         )}
-        {activeTab === "stock" && (
-          <div className="flex items-center gap-2 bg-blue-50 p-3 rounded-lg border border-blue-100 w-fit text-blue-800 text-sm">
-            <Package className="w-4 h-4" />
-            <span>
-              Laporan menunjukkan <strong>Posisi Stok Terkini</strong>{" "}
-              (Real-time)
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Tabs Layout */}
@@ -313,16 +356,6 @@ export default function ReportPage() {
             }`}
           >
             <TrendingUp className="w-4 h-4" /> Laporan Penjualan
-          </button>
-          <button
-            onClick={() => setActiveTab("stock")}
-            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
-              activeTab === "stock"
-                ? "bg-primary-500 text-white shadow-md"
-                : "hover:bg-primary-50 text-gray-600"
-            }`}
-          >
-            <Package className="w-4 h-4" /> Laporan Stok
           </button>
           <button
             onClick={() => setActiveTab("prediction")}
@@ -432,106 +465,6 @@ export default function ReportPage() {
                           className="text-center h-24 text-muted"
                         >
                           Belum ada data penjualan
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          )}
-
-          {/* Stock Report */}
-          {(activeTab === "stock" ||
-            (typeof window !== "undefined" &&
-              window.matchMedia("print").matches)) && (
-            <div
-              className={`space-y-6 ${
-                activeTab !== "stock"
-                  ? "hidden print:block print:mt-8 print:break-before-page"
-                  : ""
-              }`}
-            >
-              <h2 className="text-xl font-bold hidden print:block mb-4 border-b pb-2">
-                Laporan Stok Bahan
-              </h2>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="text-sm font-medium text-muted">
-                      Total Jenis Bahan
-                    </div>
-                    <div className="text-2xl font-bold text-primary-600">
-                      {stockData.length} Item
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="text-sm font-medium text-muted">
-                      Status Perlu Perhatian
-                    </div>
-                    <div
-                      className={`text-2xl font-bold ${
-                        lowStockCount > 0 ? "text-red-600" : "text-green-600"
-                      }`}
-                    >
-                      {lowStockCount} Item
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="bg-white rounded-xl border border-primary-100 shadow-sm overflow-hidden">
-                <Table>
-                  <TableHeader className="bg-primary-50/50">
-                    <TableRow>
-                      <TableHead>Nama Bahan</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Stok Saat Ini</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="print:hidden">Keterangan</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {stockData.length > 0 ? (
-                      stockData.map((item) => {
-                        const status = getStockStatus(
-                          item.currentStock,
-                          item.minStock
-                        );
-                        const colors = getStatusColor(status);
-                        return (
-                          <TableRow key={item.id}>
-                            <TableCell className="font-semibold text-primary-900">
-                              {item.name}
-                            </TableCell>
-                            <TableCell>{item.unit}</TableCell>
-                            <TableCell className="font-mono font-medium">
-                              {item.currentStock}
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant="outline"
-                                className={`${colors.badge} border`}
-                              >
-                                {getStatusLabel(status)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-xs text-muted print:hidden">
-                              Min: {item.minStock} / Max: {item.maxStock}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    ) : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={5}
-                          className="text-center h-24 text-muted"
-                        >
-                          Belum ada data stok
                         </TableCell>
                       </TableRow>
                     )}

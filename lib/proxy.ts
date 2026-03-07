@@ -1,11 +1,8 @@
 export const PROTECTED_ROUTES = [
   "/dashboard",
-  "/reports",
-  "/inventory",
+  "/report",
   "/sales",
-  "/products",
-  "/recipes",
-  "/settings",
+  "/predictions",
 ];
 
 export const AUTH_COOKIE_NAME = "auth_token";

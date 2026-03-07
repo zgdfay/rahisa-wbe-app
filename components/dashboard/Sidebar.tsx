@@ -3,15 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   ShoppingBag,
   TrendingUp,
-  Package,
-  BookOpen,
-  Layers,
-  ShoppingCart,
   BarChart3,
   LogOut,
   ChevronRight,
@@ -35,36 +30,12 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
   { icon: ShoppingBag, label: "Penjualan", href: "/sales" },
   { icon: TrendingUp, label: "Prediksi", href: "/predictions" },
-  { icon: Package, label: "Produk", href: "/product" },
-  { icon: BookOpen, label: "Resep", href: "/recipe" },
-  { icon: Layers, label: "Stok Bahan", href: "/inventory" },
-  {
-    icon: ShoppingCart,
-    label: "Rekomendasi Belanja",
-    href: "/shopping-list",
-  },
   { icon: BarChart3, label: "Laporan", href: "/report" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [role, setRole] = useState<string>("admin"); // Default to admin while loading
-
-  useEffect(() => {
-    const session = localStorage.getItem("user_session");
-    if (session) {
-      const { role } = JSON.parse(session);
-      setRole(role || "admin");
-    }
-  }, []);
-
-  const filteredMenuItems = menuItems.filter((item) => {
-    if (role === "cashier") {
-      return ["/sales", "/product"].includes(item.href);
-    }
-    return true; // Admin sees all
-  });
 
   const handleLogout = () => {
     localStorage.removeItem("user_session");
@@ -97,7 +68,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-2">
-        {filteredMenuItems.map((item) => {
+        {menuItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
@@ -107,7 +78,7 @@ export function Sidebar() {
                 "group flex items-center justify-between p-3 rounded-2xl transition-all duration-300",
                 isActive
                   ? "bg-primary-900 text-white shadow-lg shadow-primary-900/20"
-                  : "text-muted hover:bg-primary-50 hover:text-primary-700"
+                  : "text-muted hover:bg-primary-50 hover:text-primary-700",
               )}
             >
               <div className="flex items-center gap-3">
@@ -116,7 +87,7 @@ export function Sidebar() {
                     "w-5 h-5 transition-transform duration-300 group-hover:scale-110",
                     isActive
                       ? "text-white"
-                      : "text-muted group-hover:text-primary-600"
+                      : "text-muted group-hover:text-primary-600",
                   )}
                 />
                 <span className="font-medium text-sm">{item.label}</span>

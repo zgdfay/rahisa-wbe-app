@@ -5,22 +5,62 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 import { PredictionMetrics } from "./PredictionMetrics";
 import { PredictionChart } from "./PredictionChart";
 import { PredictionResult } from "./predictionUtils";
+import { Button } from "@/components/ui/button";
 
 interface PredictionCardProps {
   prediction: PredictionResult;
 }
 
 export function PredictionCard({ prediction }: PredictionCardProps) {
+  // Determine MAPE quality label
+  const getMapeLabel = (mape: number) => {
+    if (mape === 0)
+      return { label: "Belum Cukup Data", color: "bg-gray-100 text-gray-700" };
+    if (mape <= 10)
+      return {
+        label: "Sangat Akurat",
+        color: "bg-emerald-100 text-emerald-700",
+      };
+    if (mape <= 20)
+      return { label: "Akurat", color: "bg-blue-100 text-blue-700" };
+    if (mape <= 50)
+      return { label: "Cukup Akurat", color: "bg-amber-100 text-amber-700" };
+    return { label: "Kurang Akurat", color: "bg-red-100 text-red-700" };
+  };
+
+  const mapeInfo = getMapeLabel(prediction.mape);
+
   return (
     <Card className="overflow-hidden">
       <CardHeader className="bg-primary-50 border-b border-primary-100">
-        <CardTitle className="text-lg">{prediction.productName}</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">{prediction.productName}</CardTitle>
+          <Badge
+            variant="outline"
+            className={`${mapeInfo.color} border-0 text-[11px] font-semibold`}
+          >
+            {mapeInfo.label}
+          </Badge>
+        </div>
         <CardDescription>
           Prediksi berdasarkan {prediction.historicalData.length} hari terakhir
         </CardDescription>
+        <div className="flex gap-3 mt-1">
+          <span className="text-[11px] text-muted font-mono">
+            α = {prediction.bestAlpha.toFixed(1)}
+          </span>
+          <span className="text-[11px] text-muted font-mono">
+            β = {prediction.bestBeta.toFixed(1)}
+          </span>
+          <span className="text-[11px] text-muted font-mono">
+            MAPE = {prediction.mape}%
+          </span>
+        </div>
       </CardHeader>
       <CardContent className="pt-6 space-y-6">
         <PredictionMetrics
@@ -32,6 +72,16 @@ export function PredictionCard({ prediction }: PredictionCardProps) {
           productId={prediction.productId}
           predictionData={prediction.predictionData}
         />
+        <div className="pt-2">
+          <Link href={`/predictions/${prediction.productId}`}>
+            <Button
+              variant="outline"
+              className="w-full bg-white hover:bg-primary-50 text-primary-700 border-primary-200"
+            >
+              Lihat Tabel Perhitungan Detail
+            </Button>
+          </Link>
+        </div>
       </CardContent>
     </Card>
   );

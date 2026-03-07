@@ -28,23 +28,55 @@ export default function PredictionsPage() {
 
           loadedTransactions
             .filter(
-              (t) => t.productId === product.id && t.status === "completed"
+              (t) => t.productId === product.id && t.status === "completed",
             )
             .forEach((t) => {
               salesByDate[t.date] = (salesByDate[t.date] || 0) + t.quantity;
             });
 
-          // Get last 14 days of data
-          const dates = Object.keys(salesByDate).sort();
-          const last14Days = dates.slice(-14);
-          const salesData = last14Days.map((date) => salesByDate[date]);
+          // Get continuous dates from the first sale up to today
+          const datesList = Object.keys(salesByDate).sort();
+          if (datesList.length === 0) {
+            return {
+              productId: product.id,
+              productName: product.name,
+              tomorrowPrediction: 0,
+              weeklyPrediction: 0,
+              recommendedProduction: 0,
+              bestAlpha: 0.1,
+              bestBeta: 0.1,
+              mape: 0,
+              historicalData: [],
+              predictionData: [],
+              calculationDetails: [],
+            };
+          }
 
-          // Apply Double Exponential Smoothing
-          const smoothed = doubleExponentialSmoothing(salesData);
+          const firstDate = new Date(datesList[0]);
+          const lastDate = new Date(datesList[datesList.length - 1]);
+          // Use today as the last date if the last sale was before today
+          const today = new Date();
+          const targetLastDate = today > lastDate ? today : lastDate;
 
-          // Predict tomorrow (next value)
-          const tomorrowPrediction =
-            smoothed.length > 0 ? Math.round(smoothed[smoothed.length - 1]) : 0;
+          const continuousDates: string[] = [];
+          for (
+            let d = new Date(firstDate);
+            d <= targetLastDate;
+            d.setDate(d.getDate() + 1)
+          ) {
+            const dateStr = d.toLocaleDateString("en-CA");
+            continuousDates.push(dateStr);
+          }
+
+          const salesData = continuousDates.map(
+            (date) => salesByDate[date] || 0,
+          );
+
+          // Apply Double Exponential Smoothing with grid search on ALL data
+          const desResult = doubleExponentialSmoothing(salesData);
+
+          // Predict tomorrow (next value from best α/β)
+          const tomorrowPrediction = desResult.nextForecast;
 
           // Predict weekly average (7 days forward)
           const weeklyPrediction = Math.round(tomorrowPrediction * 7);
@@ -52,10 +84,10 @@ export default function PredictionsPage() {
           // Recommended production = prediction + 20% buffer
           const recommendedProduction = Math.round(tomorrowPrediction * 1.2);
 
-          // Prepare historical data for chart
-          const historicalData = last14Days.map((date) => ({
+          // Prepare historical data for chart (can show all or just recent)
+          const historicalData = continuousDates.map((date, index) => ({
             date,
-            sales: salesByDate[date],
+            sales: salesData[index],
           }));
 
           // Prepare prediction data (historical + tomorrow)
@@ -68,14 +100,29 @@ export default function PredictionsPage() {
             { date: tomorrowStr, sales: tomorrowPrediction, predicted: true },
           ];
 
+          // Prepare calculation details table data
+          const calculationDetails = continuousDates.map((date, index) => {
+            return {
+              date,
+              actual: salesData[index],
+              level: desResult.levels[index],
+              trend: desResult.trends[index],
+              forecast: desResult.forecasts[index],
+            };
+          });
+
           return {
             productId: product.id,
             productName: product.name,
             tomorrowPrediction,
             weeklyPrediction,
             recommendedProduction,
+            bestAlpha: desResult.bestAlpha,
+            bestBeta: desResult.bestBeta,
+            mape: desResult.mape,
             historicalData,
             predictionData,
+            calculationDetails,
           };
         });
 
