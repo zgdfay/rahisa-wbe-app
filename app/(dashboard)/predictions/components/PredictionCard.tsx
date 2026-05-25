@@ -7,10 +7,19 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { PredictionMetrics } from "./PredictionMetrics";
-import { PredictionChart } from "./PredictionChart";
 import { PredictionResult } from "./predictionUtils";
 import { Button } from "@/components/ui/button";
+
+const PredictionChart = dynamic(() => import("./PredictionChart").then((mod) => mod.PredictionChart), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[200px] rounded-xl bg-primary-50/70 animate-pulse flex items-center justify-center text-xs text-muted">
+      Memuat grafik...
+    </div>
+  ),
+});
 
 interface PredictionCardProps {
   prediction: PredictionResult;

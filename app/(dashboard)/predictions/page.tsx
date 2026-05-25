@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 import { Transaction, PRODUCTS } from "../sales/components/types";
@@ -13,124 +13,129 @@ import {
 export default function PredictionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [predictions, setPredictions] = useState<PredictionResult[]>([]);
+  const [isCalculating, startTransition] = useTransition();
 
   useEffect(() => {
-    const saved = localStorage.getItem("sales_transactions");
-    if (saved) {
+    const load = async () => {
       try {
-        const loadedTransactions: Transaction[] = JSON.parse(saved);
+        const res = await fetch("/api/sales");
+        if (!res.ok) return;
+        const loadedTransactions: Transaction[] = await res.json();
         setTransactions(loadedTransactions);
 
-        // Calculate predictions for each product
-        const productPredictions = PRODUCTS.map((product) => {
-          // Group sales by date for this product
-          const salesByDate: { [date: string]: number } = {};
-
-          loadedTransactions
-            .filter(
-              (t) => t.productId === product.id && t.status === "completed",
-            )
-            .forEach((t) => {
-              salesByDate[t.date] = (salesByDate[t.date] || 0) + t.quantity;
-            });
-
-          // Get continuous dates from the first sale up to today
-          const datesList = Object.keys(salesByDate).sort();
-          if (datesList.length === 0) {
-            return {
-              productId: product.id,
-              productName: product.name,
-              tomorrowPrediction: 0,
-              weeklyPrediction: 0,
-              recommendedProduction: 0,
-              bestAlpha: 0.1,
-              bestBeta: 0.1,
-              mape: 0,
-              historicalData: [],
-              predictionData: [],
-              calculationDetails: [],
-            };
+        startTransition(() => {
+          // Build all sales buckets in one pass to avoid repeating filters for each product.
+          const salesBuckets = new Map<string, Record<string, number>>();
+          for (const trx of loadedTransactions) {
+            if (trx.status !== "completed") continue;
+            const bucket = salesBuckets.get(trx.productId) ?? {};
+            bucket[trx.date] = (bucket[trx.date] || 0) + trx.quantity;
+            salesBuckets.set(trx.productId, bucket);
           }
 
-          const firstDate = new Date(datesList[0]);
-          const lastDate = new Date(datesList[datesList.length - 1]);
-          // Use today as the last date if the last sale was before today
-          const today = new Date();
-          const targetLastDate = today > lastDate ? today : lastDate;
+          // Calculate predictions for each product
+          const productPredictions = PRODUCTS.map((product) => {
+            const salesByDate = salesBuckets.get(product.id) ?? {};
 
-          const continuousDates: string[] = [];
-          for (
-            let d = new Date(firstDate);
-            d <= targetLastDate;
-            d.setDate(d.getDate() + 1)
-          ) {
-            const dateStr = d.toLocaleDateString("en-CA");
-            continuousDates.push(dateStr);
-          }
+            // Get continuous dates from the first sale up to today
+            const datesList = Object.keys(salesByDate).sort();
+            if (datesList.length === 0) {
+              return {
+                productId: product.id,
+                productName: product.name,
+                tomorrowPrediction: 0,
+                weeklyPrediction: 0,
+                weeklyForecasts: [] as number[],
+                recommendedProduction: 0,
+                bestAlpha: 0.1,
+                bestBeta: 0.1,
+                mape: 0,
+                historicalData: [],
+                predictionData: [],
+                calculationDetails: [],
+              };
+            }
 
-          const salesData = continuousDates.map(
-            (date) => salesByDate[date] || 0,
-          );
+            const firstDate = new Date(datesList[0]);
+            const lastDate = new Date(datesList[datesList.length - 1]);
+            // Use today as the last date if the last sale was before today
+            const today = new Date();
+            const targetLastDate = today > lastDate ? today : lastDate;
 
-          // Apply Double Exponential Smoothing with grid search on ALL data
-          const desResult = doubleExponentialSmoothing(salesData);
+            const continuousDates: string[] = [];
+            for (
+              let d = new Date(firstDate);
+              d <= targetLastDate;
+              d.setDate(d.getDate() + 1)
+            ) {
+              const dateStr = d.toLocaleDateString("en-CA");
+              continuousDates.push(dateStr);
+            }
 
-          // Predict tomorrow (next value from best α/β)
-          const tomorrowPrediction = desResult.nextForecast;
+            const salesData = continuousDates.map((date) => salesByDate[date] || 0);
 
-          // Predict weekly average (7 days forward)
-          const weeklyPrediction = Math.round(tomorrowPrediction * 7);
+            // Apply Double Exponential Smoothing with grid search on ALL data
+            const desResult = doubleExponentialSmoothing(salesData);
 
-          // Recommended production = prediction + 20% buffer
-          const recommendedProduction = Math.round(tomorrowPrediction * 1.2);
+            // Predict tomorrow (next value from best α/β)
+            const tomorrowPrediction = desResult.nextForecast;
 
-          // Prepare historical data for chart (can show all or just recent)
-          const historicalData = continuousDates.map((date, index) => ({
-            date,
-            sales: salesData[index],
-          }));
+            // Predict weekly: jumlahkan 7 hari ke depan (F(t+m) = Lt + m·Tt)
+            const weeklyPrediction = desResult.weeklyForecasts.reduce((a, b) => a + b, 0);
 
-          // Prepare prediction data (historical + tomorrow)
-          const tomorrow = new Date();
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          const tomorrowStr = tomorrow.toLocaleDateString("en-CA");
+            // Recommended production = besok + 20% buffer
+            const recommendedProduction = Math.round(tomorrowPrediction * 1.2);
 
-          const predictionData = [
-            ...historicalData,
-            { date: tomorrowStr, sales: tomorrowPrediction, predicted: true },
-          ];
+            // Prepare historical data for chart (can show all or just recent)
+            const historicalData = continuousDates.map((date, index) => ({
+              date,
+              sales: salesData[index],
+            }));
 
-          // Prepare calculation details table data
-          const calculationDetails = continuousDates.map((date, index) => {
-            return {
+            // Prepare prediction data (historical + tomorrow)
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = tomorrow.toLocaleDateString("en-CA");
+
+            // Keep the chart compact so the page stays responsive.
+            const chartHistory = historicalData.slice(-60);
+            const predictionData = [
+              ...chartHistory,
+              { date: tomorrowStr, sales: tomorrowPrediction, predicted: true },
+            ];
+
+            // Prepare calculation details table data
+            const calculationDetails = continuousDates.map((date, index) => ({
               date,
               actual: salesData[index],
               level: desResult.levels[index],
               trend: desResult.trends[index],
               forecast: desResult.forecasts[index],
+            }));
+
+            return {
+              productId: product.id,
+              productName: product.name,
+              tomorrowPrediction,
+              weeklyPrediction,
+              weeklyForecasts: desResult.weeklyForecasts,
+              recommendedProduction,
+              bestAlpha: desResult.bestAlpha,
+              bestBeta: desResult.bestBeta,
+              mape: desResult.mape,
+              historicalData,
+              predictionData,
+              calculationDetails,
             };
           });
-
-          return {
-            productId: product.id,
-            productName: product.name,
-            tomorrowPrediction,
-            weeklyPrediction,
-            recommendedProduction,
-            bestAlpha: desResult.bestAlpha,
-            bestBeta: desResult.bestBeta,
-            mape: desResult.mape,
-            historicalData,
-            predictionData,
-            calculationDetails,
-          };
+          setPredictions(productPredictions);
         });
-
-        setPredictions(productPredictions);
       } catch (e) {
-        console.error("Failed to parse transactions", e);
+        console.error("Failed to load transactions for predictions", e);
       }
-    }
+    };
+
+    load();
   }, []);
 
   return (
@@ -165,13 +170,20 @@ export default function PredictionsPage() {
       )}
 
       {/* Predictions Grid */}
+      {isCalculating && (
+        <Card>
+          <CardContent className="p-8 text-center text-muted">
+            Menghitung prediksi...
+          </CardContent>
+        </Card>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {predictions.map((prediction) => (
           <PredictionCard key={prediction.productId} prediction={prediction} />
         ))}
       </div>
 
-      {predictions.length === 0 && (
+      {!isCalculating && predictions.length === 0 && (
         <Card>
           <CardContent className="p-12 text-center">
             <p className="text-muted">

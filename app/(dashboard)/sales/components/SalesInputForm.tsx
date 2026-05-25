@@ -77,6 +77,16 @@ export function SalesInputForm({ onSave, transactions }: SalesInputFormProps) {
     toast.success("Transaksi berhasil disimpan!", {
       description: `${product.name} - ${quantity} pcs`,
     });
+    // Persist to server-side storage
+    try {
+      fetch("/api/sales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTransaction),
+      }).catch((e) => console.error("Failed to persist transaction", e));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (

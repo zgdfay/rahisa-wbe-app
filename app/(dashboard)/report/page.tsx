@@ -40,11 +40,18 @@ export default function ReportPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Load Sales Data
-    const savedSales = localStorage.getItem("sales_transactions");
-    if (savedSales) {
-      setSalesData(JSON.parse(savedSales));
-    }
+    // Load Sales Data from server
+    const load = async () => {
+      try {
+        const res = await fetch("/api/sales");
+        if (!res.ok) return;
+        const data: Transaction[] = await res.json();
+        setSalesData(data || []);
+      } catch (e) {
+        console.error("Failed to load sales", e);
+      }
+    };
+    load();
   }, []);
 
   // --- Filter Logic ---
@@ -192,7 +199,13 @@ export default function ReportPage() {
         const merged = [...salesData, ...uniqueNew];
 
         setSalesData(merged);
-        localStorage.setItem("sales_transactions", JSON.stringify(merged));
+
+        // Persist new records to server (fire-and-forget, onload tidak bisa async)
+        fetch("/api/sales", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(uniqueNew),
+        }).catch((e) => console.error("Failed to persist imported CSV", e));
 
         toast.success(
           `Berhasil import ${uniqueNew.length} data penjualan!${uniqueNew.length < newTransactions.length ? ` (${newTransactions.length - uniqueNew.length} data duplikat diabaikan)` : ""}`,

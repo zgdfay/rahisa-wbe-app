@@ -12,9 +12,17 @@ export interface DESStepDetail {
 
 /**
  * Hitung DES untuk satu kombinasi α dan β
- * Lt = α·Yt + (1-α)·(L(t-1) + T(t-1))
- * Tt = β·(Lt - L(t-1)) + (1-β)·T(t-1)
- * Ft = Lt + Tt
+ * Inisialisasi (Holt's Linear):
+ *   L₁ = Y₁
+ *   T₁ = Y₂ - Y₁
+ *
+ * Periode t ≥ 2:
+ *   Ft   = L(t-1) + T(t-1)
+ *   Lt   = α·Yt + (1-α)·Ft
+ *   Tt   = β·(Lt - L(t-1)) + (1-β)·T(t-1)
+ *
+ * Forecast m langkah ke depan:
+ *   F(t+m) = Lt + m·Tt
  */
 function computeDES(
   data: number[],
@@ -27,36 +35,36 @@ function computeDES(
 
   if (data.length === 0) return { forecasts, levels, trends };
 
-  // Period 1 (Bulan 1) -> Kosong
-  levels.push(null);
-  trends.push(null);
-  forecasts.push(null);
+  // Period 1 — inisialisasi: L₁ = Y₁, T₁ = Y₂ - Y₁, forecast = null
+  if (data.length === 1) {
+    levels.push(data[0]);
+    trends.push(0);
+    forecasts.push(null);
+    return { forecasts, levels, trends };
+  }
 
-  if (data.length === 1) return { forecasts, levels, trends };
+  let level = data[0];               // L₁ = Y₁
+  let trend = data[1] - data[0];     // T₁ = Y₂ - Y₁
 
-  // Period 2 (Bulan 2) -> Inisialisasi
-  let level = data[1];
-  let trend = data[1] - data[0];
-  
   levels.push(level);
   trends.push(trend);
-  forecasts.push(null);
+  forecasts.push(null); // Tidak ada forecast untuk periode 1
 
-  // Period 3+ seterusnya
-  for (let i = 2; i < data.length; i++) {
+  // Period 2+ — hitung forecast, lalu update level & trend
+  for (let i = 1; i < data.length; i++) {
     const prevLevel = level;
     const prevTrend = trend;
-    
-    // Forecast Ft = Lt-1 + Tt-1
+
+    // Forecast: Ft = L(t-1) + T(t-1)
     const forecast = prevLevel + prevTrend;
     forecasts.push(forecast);
 
-    // Smoothed Level Lt = a*Yt + (1-a)*(Lt-1 + Tt-1)
+    // Smoothed Level: Lt = α·Yt + (1-α)·Ft
     level = alpha * data[i] + (1 - alpha) * forecast;
-    
-    // Smoothed Trend Tt = b*(Lt - Lt-1) + (1-b)*Tt-1
+
+    // Smoothed Trend: Tt = β·(Lt - L(t-1)) + (1-β)·T(t-1)
     trend = beta * (level - prevLevel) + (1 - beta) * prevTrend;
-    
+
     levels.push(level);
     trends.push(trend);
   }
@@ -96,15 +104,32 @@ export interface DESResult {
   bestBeta: number;
   mape: number;
   nextForecast: number;
+  weeklyForecasts: number[]; // forecast per hari untuk 7 hari ke depan
 }
 
 export function doubleExponentialSmoothing(data: number[]): DESResult {
-  if (data.length === 0) {
-    return { forecasts: [], levels: [], trends: [], bestAlpha: 0.1, bestBeta: 0.1, mape: 0, nextForecast: 0 };
-  }
+  const empty: DESResult = {
+    forecasts: [],
+    levels: [],
+    trends: [],
+    bestAlpha: 0.1,
+    bestBeta: 0.1,
+    mape: 0,
+    nextForecast: 0,
+    weeklyForecasts: [],
+  };
+
+  if (data.length === 0) return empty;
 
   if (data.length === 1) {
-    return { forecasts: [null], levels: [null], trends: [null], bestAlpha: 0.1, bestBeta: 0.1, mape: 0, nextForecast: 0 };
+    return {
+      ...empty,
+      forecasts: [null],
+      levels: [data[0]],
+      trends: [0],
+      nextForecast: data[0],
+      weeklyForecasts: Array(7).fill(data[0]),
+    };
   }
 
   let bestAlpha = 0.1;
@@ -120,13 +145,9 @@ export function doubleExponentialSmoothing(data: number[]): DESResult {
     for (let b = 1; b <= 9; b++) {
       const beta = b / 10;
 
-      // Hitung DES
       const { forecasts, levels, trends } = computeDES(data, alpha, beta);
-
-      // Hitung MAPE (Hanya menghitung yang ada forecastnya)
       const mape = calculateMAPE(data, forecasts);
 
-      // Simpan jika MAPE lebih rendah
       if (mape < bestMAPE) {
         bestMAPE = mape;
         bestAlpha = alpha;
@@ -138,19 +159,21 @@ export function doubleExponentialSmoothing(data: number[]): DESResult {
     }
   }
 
-  // Hitung forecast untuk periode berikutnya (besok)
-  // Berdasarkan nilai Level dan Trend terakhir
+  // Hitung forecast untuk periode berikutnya menggunakan nilai Level & Trend terakhir
+  // F(t+m) = Lt + m·Tt  (Holt's m-step ahead forecast)
   const lastLevel = bestLevels[bestLevels.length - 1];
   const lastTrend = bestTrends[bestTrends.length - 1];
-  
-  let nextForecast = 0;
-  if (lastLevel !== null && lastTrend !== null) {
-    nextForecast = Math.round(lastLevel + lastTrend);
-  }
 
-  // Jika hasil peramalan < 0, set ke 0
-  if (nextForecast < 0) {
-    nextForecast = 0;
+  const weeklyForecasts: number[] = [];
+  let nextForecast = 0;
+
+  if (lastLevel !== null && lastTrend !== null) {
+    // 7 hari ke depan: m = 1, 2, ..., 7
+    for (let m = 1; m <= 7; m++) {
+      const fwd = Math.max(0, Math.round(lastLevel + m * lastTrend));
+      weeklyForecasts.push(fwd);
+    }
+    nextForecast = weeklyForecasts[0]; // hari pertama = besok
   }
 
   return {
@@ -161,6 +184,7 @@ export function doubleExponentialSmoothing(data: number[]): DESResult {
     bestBeta,
     mape: bestMAPE === Infinity ? 0 : Math.round(bestMAPE * 100) / 100,
     nextForecast,
+    weeklyForecasts,
   };
 }
 
@@ -169,6 +193,7 @@ export interface PredictionResult {
   productName: string;
   tomorrowPrediction: number;
   weeklyPrediction: number;
+  weeklyForecasts: number[];
   recommendedProduction: number;
   bestAlpha: number;
   bestBeta: number;

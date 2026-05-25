@@ -21,11 +21,13 @@ import {
 import {
   Pagination,
   PaginationContent,
+  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { Fragment } from "react";
 import { Transaction } from "./types";
 
 interface SalesHistoryTableProps {
@@ -86,6 +88,25 @@ export function SalesHistoryTable({ transactions }: SalesHistoryTableProps) {
     }
   };
 
+  const getVisiblePages = () => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    const pages = new Set<number>();
+    pages.add(1);
+    pages.add(totalPages);
+    pages.add(currentPage);
+    pages.add(Math.max(2, currentPage - 1));
+    pages.add(Math.min(totalPages - 1, currentPage + 1));
+
+    return Array.from(pages)
+      .filter((page) => page >= 1 && page <= totalPages)
+      .sort((a, b) => a - b);
+  };
+
+  const visiblePages = getVisiblePages();
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -95,8 +116,8 @@ export function SalesHistoryTable({ transactions }: SalesHistoryTableProps) {
             Daftar semua transaksi penjualan yang tercatat.
           </CardDescription>
         </div>
-        <div className="flex gap-2">
-          <div className="relative w-64">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-64 max-w-full">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Cari ID atau Produk..."
@@ -108,7 +129,7 @@ export function SalesHistoryTable({ transactions }: SalesHistoryTableProps) {
               }}
             />
           </div>
-          <div className="w-[180px]">
+          <div className="w-[160px] shrink-0">
             <Select defaultValue="newest" onValueChange={setSortOrder}>
               <SelectTrigger className="h-10 cursor-pointer">
                 <SelectValue placeholder="Urutkan" />
@@ -190,7 +211,7 @@ export function SalesHistoryTable({ transactions }: SalesHistoryTableProps) {
         </div>
 
         {/* Pagination Controls */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <p>Baris per halaman:</p>
             <Select
@@ -200,7 +221,7 @@ export function SalesHistoryTable({ transactions }: SalesHistoryTableProps) {
                 setCurrentPage(1);
               }}
             >
-              <SelectTrigger className="h-8 w-[70px]">
+              <SelectTrigger className="h-8 w-[78px]">
                 <SelectValue placeholder={itemsPerPage} />
               </SelectTrigger>
               <SelectContent>
@@ -213,8 +234,8 @@ export function SalesHistoryTable({ transactions }: SalesHistoryTableProps) {
           </div>
 
           {totalPages > 1 && (
-            <Pagination>
-              <PaginationContent>
+            <Pagination className="w-full lg:w-auto overflow-x-auto">
+              <PaginationContent className="flex-wrap justify-center lg:justify-end">
                 <PaginationItem>
                   <PaginationPrevious
                     href="#"
@@ -230,27 +251,37 @@ export function SalesHistoryTable({ transactions }: SalesHistoryTableProps) {
                   />
                 </PaginationItem>
 
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (page) => (
-                    <PaginationItem key={page}>
-                      <PaginationLink
-                        href="#"
-                        isActive={page === currentPage}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handlePageChange(page);
-                        }}
-                        className={
-                          page === currentPage
-                            ? "bg-primary-500 text-white border-primary-500 hover:bg-primary-600"
-                            : "border-primary-200 hover:bg-primary-50 hover:border-primary-300"
-                        }
-                      >
-                        {page}
-                      </PaginationLink>
-                    </PaginationItem>
-                  )
-                )}
+                {visiblePages.map((page, index) => {
+                  const previousPage = visiblePages[index - 1];
+                  const hasGap = previousPage && page - previousPage > 1;
+
+                  return (
+                    <Fragment key={page}>
+                      {hasGap && (
+                        <PaginationItem key={`ellipsis-${page}`}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      )}
+                      <PaginationItem>
+                        <PaginationLink
+                          href="#"
+                          isActive={page === currentPage}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handlePageChange(page);
+                          }}
+                          className={
+                            page === currentPage
+                              ? "bg-primary-500 text-white border-primary-500 hover:bg-primary-600"
+                              : "border-primary-200 hover:bg-primary-50 hover:border-primary-300"
+                          }
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    </Fragment>
+                  );
+                })}
 
                 <PaginationItem>
                   <PaginationNext

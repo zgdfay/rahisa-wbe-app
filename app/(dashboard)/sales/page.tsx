@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Upload } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { Transaction } from "./components/types";
 import { SalesInputForm } from "./components/SalesInputForm";
 import { SalesHistoryTable } from "./components/SalesHistoryTable";
@@ -10,76 +12,41 @@ import { SalesTrendChart } from "./components/SalesTrendChart";
 export default function SalesPage() {
   const [activeTab, setActiveTab] = useState("input");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load transactions from localStorage on mount
+  // Load transactions from server-side storage on mount
   useEffect(() => {
-    const saved = localStorage.getItem("sales_transactions");
-    if (saved) {
+    const loadFromServer = async () => {
       try {
-        setTransactions(JSON.parse(saved));
+        const res = await fetch("/api/sales");
+        if (res.ok) {
+          const json = await res.json();
+          setTransactions(json || []);
+        }
       } catch (e) {
-        console.error("Failed to parse transactions", e);
+        console.error("Failed to load transactions from server", e);
       }
-    } else {
-      // Seed dummy data if empty
-      const dummyData: Transaction[] = [];
-      const products = [
-        { id: "roti-tawar", name: "Roti Tawar Spesial", price: 15000 },
-        { id: "croissant", name: "Butter Croissant", price: 12000 },
-        { id: "bolu-pandan", name: "Bolu Pandan", price: 35000 },
-        { id: "donat", name: "Donat Kentang", price: 5000 },
-        { id: "sourdough", name: "Sourdough Bread", price: 25000 },
-      ];
+    };
 
-      // Helper to generate random transactions
-      const generateRandomTrx = (date: string, count: number) => {
-        for (let i = 0; i < count; i++) {
-          const prod = products[Math.floor(Math.random() * products.length)];
-          const qty = Math.floor(Math.random() * 5) + 1;
-          dummyData.push({
-            id: `TRX-${Date.now()}-${dummyData.length}`,
-            date: date,
-            time: "10:00", // placeholder time
-            productId: prod.id,
-            productName: prod.name,
-            quantity: qty,
-            totalPrice: prod.price * qty,
-            status: "completed",
-          });
-        }
-      };
-
-      // Generate for Dec 2025 (1st to 31st)
-      for (let d = 1; d <= 31; d++) {
-        // Randomly skip some days to generate realistic trends
-        if (Math.random() > 0.2) {
-          const day = d < 10 ? `0${d}` : d;
-          // Random number of transactions per day (1-5)
-          generateRandomTrx(
-            `2025-12-${day}`,
-            Math.floor(Math.random() * 5) + 1
-          );
-        }
-      }
-
-      // Generate for Jan 2026 (1st to 8th)
-      for (let d = 1; d <= 8; d++) {
-        const day = d < 10 ? `0${d}` : d;
-        generateRandomTrx(`2026-01-${day}`, Math.floor(Math.random() * 6) + 2);
-      }
-
-      setTransactions(dummyData);
-      localStorage.setItem("sales_transactions", JSON.stringify(dummyData));
-    }
+    loadFromServer();
   }, []);
 
   const handleSaveTransaction = (newTransaction: Transaction) => {
     const updatedTransactions = [newTransaction, ...transactions];
     setTransactions(updatedTransactions);
-    localStorage.setItem(
-      "sales_transactions",
-      JSON.stringify(updatedTransactions)
-    );
+  };
+
+  // Refresh data from server (use after import)
+  const handleRefresh = async () => {
+    try {
+      const res = await fetch("/api/sales");
+      if (res.ok) {
+        const json = await res.json();
+        setTransactions(json || []);
+      }
+    } catch (e) {
+      console.error("refresh failed", e);
+    }
   };
 
   return (
@@ -91,6 +58,44 @@ export default function SalesPage() {
           <p className="text-muted mt-1">
             Kelola transaksi dan pantau performa penjualan produk.
           </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={async (e) => {
+              const input = e.currentTarget;
+              const f = input.files?.[0];
+              if (!f) return;
+              const fd = new FormData();
+              fd.append("file", f);
+              try {
+                const res = await fetch("/api/import-sales", { method: "POST", body: fd });
+                if (res.ok) {
+                  // refresh
+                  await handleRefresh();
+                  alert("Import sukses");
+                } else {
+                  const txt = await res.json();
+                  alert("Import gagal: " + JSON.stringify(txt));
+                }
+              } catch (err) {
+                alert("Import error: " + String(err));
+              } finally {
+                input.value = "";
+              }
+            }}
+          />
+          <Button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="gap-2 text-white bg-primary-600 hover:bg-primary-700"
+          >
+            <Upload className="h-4 w-4" />
+            Import Excel
+          </Button>
         </div>
       </div>
 

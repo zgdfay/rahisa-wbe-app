@@ -41,23 +41,23 @@ export default function PredictionDetailPage() {
     }
     setProductName(product.name);
 
-    // Fetch data from localStorage
-    const saved = localStorage.getItem("sales_transactions");
-    if (!saved) {
-      setIsLoading(false);
-      return;
-    }
+    // Fetch data from server
+    const load = async () => {
+      try {
+        const res = await fetch("/api/sales");
+        if (!res.ok) {
+          setIsLoading(false);
+          return;
+        }
+        const loadedTransactions: Transaction[] = await res.json();
 
-    try {
-      const loadedTransactions: Transaction[] = JSON.parse(saved);
-
-      // Group sales by date for this product
-      const salesByDate: { [date: string]: number } = {};
-      loadedTransactions
-        .filter((t) => t.productId === productId && t.status === "completed")
-        .forEach((t) => {
-          salesByDate[t.date] = (salesByDate[t.date] || 0) + t.quantity;
-        });
+        // Group sales by date for this product
+        const salesByDate: { [date: string]: number } = {};
+        loadedTransactions
+          .filter((t) => t.productId === productId && t.status === "completed")
+          .forEach((t) => {
+            salesByDate[t.date] = (salesByDate[t.date] || 0) + t.quantity;
+          });
 
       const datesList = Object.keys(salesByDate).sort();
       if (datesList.length === 0) {
@@ -100,11 +100,14 @@ export default function PredictionDetailPage() {
       setMape(desResult.mape);
       setBestAlpha(desResult.bestAlpha);
       setBestBeta(desResult.bestBeta);
-    } catch (e) {
-      console.error("Failed to parse transactions", e);
-    }
+      } catch (e) {
+        console.error("Failed to parse transactions", e);
+      }
 
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+
+    load();
   }, [productId, router]);
 
   const handleExportCSV = () => {

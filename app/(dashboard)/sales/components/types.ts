@@ -10,9 +10,14 @@ export interface Transaction {
 }
 
 export const PRODUCTS = [
-  { id: "roti-tawar", name: "Roti Tawar Spesial", price: 15000 },
-  { id: "croissant", name: "Butter Croissant", price: 12000 },
-  { id: "bolu-pandan", name: "Bolu Pandan", price: 35000 },
-  { id: "donat", name: "Donat Kentang", price: 5000 },
-  { id: "sourdough", name: "Sourdough Bread", price: 25000 },
+  { id: "donat", name: "Donat", price: 5000 },
+  { id: "donat-box-1-2-dz", name: "Donat Box 1/2 Dz", price: 25000 },
+  { id: "bomboloni-nutella", name: "Bomboloni Nutella", price: 12000 },
+  { id: "floss-roll-abon", name: "Floss Roll Abon", price: 15000 },
+  { id: "sisir-besar", name: "Sisir Besar", price: 9000 },
+  { id: "sisir-meses", name: "Sisir Meses", price: 9000 },
+  { id: "sisir-besar-pandan", name: "Sisir Besar Pandan", price: 9500 },
+  { id: "pizza", name: "Pizza", price: 30000 },
+  { id: "cheese-cake", name: "Cheese Cake", price: 45000 },
+  { id: "cheers-besar", name: "Cheers Besar", price: 18000 },
 ];

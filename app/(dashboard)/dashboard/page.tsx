@@ -19,14 +19,18 @@ export default function DashboardPage() {
 
   // Load transactions from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem("sales_transactions");
-    if (saved) {
+    const load = async () => {
       try {
-        setTransactions(JSON.parse(saved));
+        const res = await fetch("/api/sales");
+        if (!res.ok) return;
+        const data = await res.json();
+        setTransactions(data || []);
       } catch (e) {
-        console.error("Failed to parse transactions", e);
+        console.error("Failed to load transactions", e);
       }
-    }
+    };
+
+    load();
   }, []);
 
   const currentHour = new Date().getHours();
