@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Upload } from "lucide-react";
+import { Upload, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Transaction } from "./components/types";
@@ -49,6 +49,25 @@ export default function SalesPage() {
     }
   };
 
+  const handleResetData = async () => {
+    const confirm = window.confirm(
+      "Apakah kamu yakin ingin mereset/menghapus semua data penjualan? Aksi ini tidak dapat dibatalkan."
+    );
+    if (!confirm) return;
+
+    try {
+      const res = await fetch("/api/sales", { method: "DELETE" });
+      if (res.ok) {
+        await handleRefresh();
+        alert("Data penjualan berhasil direset.");
+      } else {
+        alert("Gagal mereset data.");
+      }
+    } catch (e) {
+      alert("Error: " + String(e));
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
@@ -88,6 +107,15 @@ export default function SalesPage() {
               }
             }}
           />
+          <Button
+            type="button"
+            onClick={handleResetData}
+            variant="outline"
+            className="gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+          >
+            <Trash2 className="h-4 w-4" />
+            Reset Data
+          </Button>
           <Button
             type="button"
             onClick={() => fileInputRef.current?.click()}

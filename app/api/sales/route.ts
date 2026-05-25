@@ -39,3 +39,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: String(e) }, { status: 400 });
   }
 }
+
+export async function DELETE() {
+  try {
+    if (fs.existsSync(DATA_PATH)) {
+      fs.writeFileSync(DATA_PATH, JSON.stringify([], null, 2), "utf-8");
+    }
+    return NextResponse.json({ deleted: true });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}
