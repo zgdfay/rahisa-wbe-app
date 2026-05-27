@@ -55,6 +55,37 @@ export function SalesTrendChart({ transactions }: SalesTrendChartProps) {
     }
   }, [monthOptions, selectedMonth]);
 
+  const hasRangeData = React.useMemo(() => {
+    const today = new Date();
+    let daysToSubtract = 7;
+
+    if (selectedRange === "14d") daysToSubtract = 14;
+    if (selectedRange === "30d") daysToSubtract = 30;
+
+    const rangeDates = new Set<string>();
+
+    for (let i = daysToSubtract - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      rangeDates.add(d.toLocaleDateString("en-CA"));
+    }
+
+    return transactions.some(
+      (trx) => trx.status === "completed" && rangeDates.has(trx.date)
+    );
+  }, [transactions, selectedRange]);
+
+  React.useEffect(() => {
+    if (
+      activeFilter === "range" &&
+      monthOptions.length > 0 &&
+      !hasRangeData
+    ) {
+      setActiveFilter("month");
+      setSelectedMonth(monthOptions[0]);
+    }
+  }, [activeFilter, hasRangeData, monthOptions]);
+
   const chartData = React.useMemo(() => {
     const daysMap: Record<string, number> = {};
     const result = [];
@@ -96,6 +127,8 @@ export function SalesTrendChart({ transactions }: SalesTrendChartProps) {
 
     return result;
   }, [transactions, activeFilter, selectedRange, selectedMonth]);
+
+  const hasChartData = chartData.some((item) => item.revenue > 0);
 
   const chartConfig = {
     revenue: {
@@ -193,65 +226,91 @@ export function SalesTrendChart({ transactions }: SalesTrendChartProps) {
         </div>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-        <ChartContainer
-          config={chartConfig}
-          className="aspect-auto h-[400px] w-full"
-        >
-          <AreaChart data={chartData}>
-            <defs>
-              <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor="var(--color-revenue)"
-                  stopOpacity={0.8}
-                />
-                <stop
-                  offset="95%"
-                  stopColor="var(--color-revenue)"
-                  stopOpacity={0.1}
-                />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              minTickGap={32}
-              tickFormatter={(value) => {
-                const date = new Date(value);
-                return date.toLocaleDateString("id-ID", {
-                  month: "short",
-                  day: "numeric",
-                });
-              }}
-            />
-            <ChartTooltip
-              cursor={false}
-              content={
-                <ChartTooltipContent
-                  labelFormatter={(value) => {
-                    return new Date(value).toLocaleDateString("id-ID", {
-                      month: "long",
+        {chartData.length > 0 ? (
+          hasChartData ? (
+            <ChartContainer
+              config={chartConfig}
+              className="aspect-auto h-[400px] w-full"
+            >
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="5%"
+                      stopColor="var(--color-revenue)"
+                      stopOpacity={0.8}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor="var(--color-revenue)"
+                      stopOpacity={0.1}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  minTickGap={32}
+                  tickFormatter={(value) => {
+                    const date = new Date(value);
+                    return date.toLocaleDateString("id-ID", {
+                      month: "short",
                       day: "numeric",
-                      year: "numeric",
                     });
                   }}
-                  indicator="dot"
                 />
-              }
-            />
-            <Area
-              dataKey="revenue"
-              type="monotone"
-              fill="url(#fillRevenue)"
-              stroke="var(--color-revenue)"
-              stackId="a"
-            />
-            <ChartLegend content={<ChartLegendContent />} />
-          </AreaChart>
-        </ChartContainer>
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(value) => {
+                        return new Date(value).toLocaleDateString("id-ID", {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        });
+                      }}
+                      indicator="dot"
+                    />
+                  }
+                />
+                <Area
+                  dataKey="revenue"
+                  type="monotone"
+                  fill="url(#fillRevenue)"
+                  stroke="var(--color-revenue)"
+                  stackId="a"
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+              </AreaChart>
+            </ChartContainer>
+          ) : (
+            <div className="flex h-[400px] items-center justify-center rounded-xl border border-dashed border-primary-100 bg-primary-50/30 text-center">
+              <div className="max-w-sm space-y-2 px-6">
+                <p className="text-base font-semibold text-primary-900">
+                  Tidak ada data penjualan untuk rentang ini.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Coba pilih bulan lain atau input transaksi baru agar grafik muncul.
+                </p>
+              </div>
+            </div>
+          )
+        ) : (
+          <div className="flex h-[400px] items-center justify-center rounded-xl border border-dashed border-primary-100 bg-primary-50/30 text-center">
+            <div className="max-w-sm space-y-2 px-6">
+              <p className="text-base font-semibold text-primary-900">
+                Belum ada transaksi yang bisa digrafikkan.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Tambahkan data penjualan terlebih dahulu agar grafik tren tampil.
+              </p>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
