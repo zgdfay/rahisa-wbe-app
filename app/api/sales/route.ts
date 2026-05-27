@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
   try {
     if (fs.existsSync(DATA_PATH)) {
       fs.writeFileSync(DATA_PATH, JSON.stringify([], null, 2), "utf-8");

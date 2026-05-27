@@ -111,7 +111,7 @@ export function parseSalesExcel(arrayBuffer: ArrayBuffer): SalesRow[] {
         r.filter(Boolean).join(" ")
       ),
     ];
-    const sheetDate = extractDateFromTitle(titleCandidates);
+    let sheetDate = extractDateFromTitle(titleCandidates);
 
     // Temukan baris header (maksimal scan 10 baris pertama)
     const normalize = (value: unknown) =>
@@ -196,8 +196,17 @@ export function parseSalesExcel(arrayBuffer: ArrayBuffer): SalesRow[] {
 
     const toDateString = (value: unknown): string => {
       if (value === null || value === undefined || value === "") return "";
+
+      const formatLocal = (d: Date) => {
+        const yyyy = d.getFullYear();
+        if (yyyy < 1900 || yyyy > 2100) return "";
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+      };
+
       if (value instanceof Date && !isNaN(value.getTime())) {
-        return value.toISOString().slice(0, 10);
+        return formatLocal(value);
       }
       if (typeof value === "number") {
         const date = XLSX.SSF.parse_date_code(value);
@@ -207,8 +216,19 @@ export function parseSalesExcel(arrayBuffer: ArrayBuffer): SalesRow[] {
         }
       }
       const text = String(value).trim();
+
+      // Coba parse format lokal DD/MM/YYYY atau DD-MM-YYYY
+      const match = text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (match) {
+        const year = parseInt(match[3], 10);
+        if (year >= 1900 && year <= 2100) {
+          return `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+        }
+        return "";
+      }
+
       const parsed = new Date(text);
-      if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+      if (!isNaN(parsed.getTime())) return formatLocal(parsed);
       return text;
     };
 
@@ -216,6 +236,19 @@ export function parseSalesExcel(arrayBuffer: ArrayBuffer): SalesRow[] {
     const hasTanggalCol = aliases.tanggal.some(
       (k) => Object.prototype.hasOwnProperty.call(headerMap, k)
     );
+
+    // Pre-scan untuk mencari tanggal pertama di kolom tanggal (berguna jika baris atas kosong)
+    if (hasTanggalCol && !sheetDate) {
+      for (let i = headerIndex + 1; i < rows.length; i++) {
+        const d = toDateString(getCell(rows[i] || [], "tanggal"));
+        if (d) {
+          sheetDate = d;
+          break;
+        }
+      }
+    }
+
+    let lastSeenTanggal = sheetDate;
 
     // Parse baris data
     for (let i = headerIndex + 1; i < rows.length; i++) {
@@ -228,12 +261,16 @@ export function parseSalesExcel(arrayBuffer: ArrayBuffer): SalesRow[] {
       const firstNonNull = row.find((c) => c !== null && c !== undefined && String(c).trim() !== "");
       if (isSkipRow(firstNonNull)) continue;
 
-      // Ambil tanggal: dari kolom jika ada, fallback ke tanggal sheet
+      // Ambil tanggal: dari kolom jika ada, fallback ke lastSeenTanggal
       let tanggal = "";
       if (hasTanggalCol) {
         tanggal = toDateString(getCell(row, "tanggal"));
       }
-      if (!tanggal) tanggal = sheetDate;
+      if (tanggal) {
+        lastSeenTanggal = tanggal;
+      } else {
+        tanggal = lastSeenTanggal;
+      }
 
       const nama_produk = String(getCell(row, "nama_produk") ?? "").trim();
       const jumlah_terjual = toNumber(getCell(row, "jumlah_terjual"));

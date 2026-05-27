@@ -61,12 +61,14 @@ export default function SalesPage() {
         await handleRefresh();
         alert("Data penjualan berhasil direset.");
       } else {
-        alert("Gagal mereset data.");
+        const errorText = await res.text();
+        alert(`Gagal mereset data: ${errorText} (Status: ${res.status})`);
       }
     } catch (e) {
       alert("Error: " + String(e));
     }
   };
+
 
   return (
     <div className="space-y-8 animate-fade-in">

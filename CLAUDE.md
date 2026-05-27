@@ -34,18 +34,40 @@ npm run lint     # Run ESLint
 ### Authentication
 
 Auth is handled via two mechanisms:
-- **Cookie** (`auth_token`): Set by login form, checked by route protection logic
+- **Cookie** (`auth_token`): Set by login form, checked by route protection middleware (`proxy.ts`)
 - **localStorage** (`user_session`): Stores email, role, loginTime
 
-Protected routes are defined in `lib/proxy.ts` (`PROTECTED_ROUTES` array).
+Protected routes are defined in `lib/proxy.ts` (`PROTECTED_ROUTES` array). Middleware runs in `proxy.ts` at the root — redirects to `/login` if unauthenticated, redirects to `/dashboard` if already logged in.
+
+### Data Layer
+
+Currently uses **file-based JSON storage** at `data/sales.json`. Two API routes:
+- `app/api/sales/route.ts` — GET (read all), POST (add records), DELETE (reset all)
+- `app/api/import-sales/route.ts` — POST with Excel file, parses with `lib/excelParser.ts`
+
+Supabase integration is also set up (`@supabase/supabase-js`, `@supabase/ssr`) but not actively used for sales data yet. Schema defined in `supabase/migrations/001_create_schema.sql` with tables: `produk`, `penjualan`, `forecasting`.
+
+### Excel Parsing (`lib/excelParser.ts`)
+
+Parses `.xlsx` files with multi-sheet support. Handles:
+- Date extraction from sheet names or title rows (supports multiple formats: "01 January 2026", "2026-01-01", etc.)
+- Column detection by aliases (Indonesian & English, e.g. `nama_produk` / `product name` / `barang`)
+- Auto-skip category rows (Cake, Donat, Minuman, TOTAL, etc.)
+- Rupiah format parsing (`Rp12.000` → 12000)
 
 ### Prediction System (`app/(dashboard)/predictions/components/predictionUtils.ts`)
 
-Uses **Double Exponential Smoothing (DES)** with grid search:
+Uses **Double Exponential Smoothing (DES)** with Holt's Linear method:
 - Grid searches α and β from 0.1–0.9 (step 0.1)
 - Optimizes for lowest MAPE (Mean Absolute Percentage Error)
-- Returns forecasts, levels, trends, best parameters, and next period prediction
-- If forecast < 0, clamps to 0
+- Initialization: L₁ = Y₁, T₁ = Y₂ - Y₁
+- Forecast: F(t+m) = Lt + m·Tt
+- Returns 7-day weekly forecasts, best α/β, and step-by-step calculation details
+- Negative forecasts are clamped to 0
+
+### Product Catalog
+
+Defined in `app/(dashboard)/sales/components/types.ts` with 10 products (Donat, Bomboloni Nutella, Floss Roll Abon, Sisir Besar, Pizza, Cheese Cake, etc.). Each has an id, name, and base price.
 
 ### UI Components
 
@@ -141,7 +163,16 @@ npm install pdf-parse
 
 ## Key Files
 
-- `app/layout.tsx` — Root layout with font configuration
-- `app/(dashboard)/layout.tsx` — Dashboard layout with Sidebar and Toaster
-- `lib/proxy.ts` — Protected route definitions and auth cookie constants
+- `proxy.ts` — Middleware: auth check, route protection, login redirect
+- `lib/proxy.ts` — PROTECTED_ROUTES config and AUTH_COOKIE_NAME constant
+- `lib/excelParser.ts` — Multi-sheet Excel parser with column aliases
 - `lib/utils.ts` — `cn()` utility for Tailwind class merging
+- `app/api/sales/route.ts` — Sales data CRUD (file-based JSON)
+- `app/api/import-sales/route.ts` — Excel file upload & import endpoint
+- `app/(dashboard)/sales/components/types.ts` — Transaction type & product catalog
+- `utils/supabase/client.ts` — Supabase browser client
+- `utils/supabase/server.ts` — Supabase server client (Next.js App Router)
+- `utils/supabase/midddleware.ts` — Supabase middleware client (for Next.js middleware)
+- `supabase/migrations/001_create_schema.sql` — Database schema (produk, penjualan, forecasting)
+- `data/sales.json` — File-based sales data store
+- `app/(dashboard)/predictions/components/predictionUtils.ts` — DES prediction engine

@@ -26,9 +26,8 @@ interface PredictionCardProps {
 }
 
 export function PredictionCard({ prediction }: PredictionCardProps) {
-  // Determine MAPE quality label
-  const getMapeLabel = (mape: number) => {
-    if (mape === 0)
+  const getMapeLabel = (mape: number | null) => {
+    if (mape === null)
       return { label: "Belum Cukup Data", color: "bg-gray-100 text-gray-700" };
     if (mape <= 10)
       return {
@@ -48,7 +47,12 @@ export function PredictionCard({ prediction }: PredictionCardProps) {
     <Card className="overflow-hidden">
       <CardHeader className="bg-primary-50 border-b border-primary-100">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">{prediction.productName}</CardTitle>
+          <div className="flex items-center gap-2.5">
+            <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary-600 text-white text-xs font-bold shrink-0">
+              {prediction.rank}
+            </span>
+            <CardTitle className="text-lg">{prediction.productName}</CardTitle>
+          </div>
           <Badge
             variant="outline"
             className={`${mapeInfo.color} border-0 text-[11px] font-semibold`}
@@ -57,17 +61,17 @@ export function PredictionCard({ prediction }: PredictionCardProps) {
           </Badge>
         </div>
         <CardDescription>
-          Prediksi berdasarkan {prediction.historicalData.length} hari terakhir
+          Total terjual: <span className="font-semibold text-gray-900">{prediction.totalSales} pcs</span> — Data {prediction.historicalData.length} hari
         </CardDescription>
         <div className="flex gap-3 mt-1">
           <span className="text-[11px] text-muted font-mono">
-            α = {prediction.bestAlpha.toFixed(1)}
+            α = {prediction.bestAlpha}
           </span>
           <span className="text-[11px] text-muted font-mono">
-            β = {prediction.bestBeta.toFixed(1)}
+            β = {prediction.bestBeta}
           </span>
           <span className="text-[11px] text-muted font-mono">
-            MAPE = {prediction.mape}%
+            MAPE = {prediction.mape !== null ? `${prediction.mape}%` : "N/A"}
           </span>
         </div>
       </CardHeader>

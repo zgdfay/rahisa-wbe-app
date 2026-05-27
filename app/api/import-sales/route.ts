@@ -28,12 +28,25 @@ export async function POST(req: Request) {
 
       // try normalize date to YYYY-MM-DD
       let dateStr = String(r.tanggal);
-      try {
-        const d = new Date(dateStr);
-        if (!isNaN(d.getTime())) {
-          dateStr = d.toISOString().slice(0, 10);
-        }
-      } catch (e) {}
+      if (!r.tanggal || dateStr.trim() === "" || dateStr === "undefined") {
+        const d = new Date();
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        dateStr = `${yyyy}-${mm}-${dd}`;
+      } else {
+        try {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            const d = new Date(dateStr);
+            if (!isNaN(d.getTime())) {
+              const yyyy = d.getFullYear();
+              const mm = String(d.getMonth() + 1).padStart(2, "0");
+              const dd = String(d.getDate()).padStart(2, "0");
+              dateStr = `${yyyy}-${mm}-${dd}`;
+            }
+          }
+        } catch (e) {}
+      }
 
       return {
         id: `TRX-${Date.now()}-${idx}`,
@@ -50,10 +63,21 @@ export async function POST(req: Request) {
     // ensure data dir
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-    // Save transformed data
-    fs.writeFileSync(DATA_PATH, JSON.stringify(transformed, null, 2), "utf-8");
+    // Filter out records with invalid dates
+    const valid = transformed.filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.date));
 
-    return NextResponse.json({ imported: transformed.length });
+    // Merge with existing data (append, don't overwrite)
+    let existing: any[] = [];
+    if (fs.existsSync(DATA_PATH)) {
+      try {
+        existing = JSON.parse(fs.readFileSync(DATA_PATH, "utf-8") || "[]");
+      } catch { }
+    }
+
+    const merged = [...existing, ...valid];
+    fs.writeFileSync(DATA_PATH, JSON.stringify(merged, null, 2), "utf-8");
+
+    return NextResponse.json({ imported: valid.length });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 400 });
   }

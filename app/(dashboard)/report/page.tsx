@@ -59,9 +59,11 @@ export default function ReportPage() {
   const availableMonths = Array.from(
     new Set(
       salesData.map((t) => {
+        if (!t.date) return "";
         const date = new Date(t.date);
+        if (isNaN(date.getTime())) return "";
         return date.toLocaleString("id-ID", { month: "long", year: "numeric" });
-      }),
+      }).filter(Boolean),
     ),
   ).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 

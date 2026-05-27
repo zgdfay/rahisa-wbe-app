@@ -38,11 +38,12 @@ export function SalesTrendChart({ transactions }: SalesTrendChartProps) {
   const [selectedRange, setSelectedRange] = React.useState("7d");
   const [selectedMonth, setSelectedMonth] = React.useState<string>("");
 
-  // Generate available month options from transactions
   const monthOptions = React.useMemo(() => {
     const months = new Set<string>();
     transactions.forEach((trx) => {
-      months.add(trx.date.substring(0, 7));
+      if (trx.date && trx.date.length >= 7) {
+        months.add(trx.date.substring(0, 7));
+      }
     });
     return Array.from(months).sort().reverse();
   }, [transactions]);
@@ -118,7 +119,7 @@ export function SalesTrendChart({ transactions }: SalesTrendChartProps) {
         <div className="flex flex-wrap items-center gap-2">
           {/* Range Select */}
           <Select
-            value={activeFilter === "range" ? selectedRange : ""}
+            value={activeFilter === "range" ? selectedRange : undefined}
             onValueChange={(val) => {
               setActiveFilter("range");
               setSelectedRange(val);
@@ -157,7 +158,7 @@ export function SalesTrendChart({ transactions }: SalesTrendChartProps) {
           {/* Month Select */}
           {monthOptions.length > 0 && (
             <Select
-              value={activeFilter === "month" ? selectedMonth : ""}
+              value={activeFilter === "month" ? selectedMonth : undefined}
               onValueChange={(val) => {
                 setActiveFilter("month");
                 setSelectedMonth(val);

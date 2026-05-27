@@ -8,6 +8,9 @@ export interface DESStepDetail {
   level: number | null;
   trend: number | null;
   forecast: number | null;
+  error: number | null;
+  absError: number | null;
+  pctError: number | null;
 }
 
 /**
@@ -72,29 +75,46 @@ function computeDES(
   return { forecasts, levels, trends };
 }
 
-/**
- * Hitung MAPE (Mean Absolute Percentage Error)
- * MAPE = (Σ |Yt - Ft| / Yt × 100%) / n
- */
-function calculateMAPE(actual: number[], forecast: (number | null)[]): number {
+interface ErrorMetrics {
+  mape: number;
+  mad: number;
+  mse: number;
+}
+
+function calculateMetrics(actual: number[], forecast: (number | null)[]): ErrorMetrics {
   let sumAPE = 0;
-  let count = 0;
+  let sumAE = 0;
+  let sumSE = 0;
+  let mapeCount = 0;
+  let errorCount = 0;
 
   for (let i = 0; i < actual.length; i++) {
-    if (forecast[i] !== null && actual[i] !== 0) {
-      sumAPE += Math.abs((actual[i] - forecast[i]!) / actual[i]) * 100;
-      count++;
+    if (forecast[i] === null) continue;
+
+    const error = actual[i] - forecast[i]!;
+    const absError = Math.abs(error);
+
+    sumAE += absError;
+    sumSE += error * error;
+    errorCount++;
+
+    if (actual[i] !== 0) {
+      sumAPE += (absError / actual[i]) * 100;
+      mapeCount++;
     }
   }
 
-  if (count === 0) return Infinity;
-  return sumAPE / count;
+  return {
+    mape: mapeCount === 0 ? Infinity : sumAPE / mapeCount,
+    mad: errorCount === 0 ? Infinity : sumAE / errorCount,
+    mse: errorCount === 0 ? Infinity : sumSE / errorCount,
+  };
 }
 
 /**
  * Grid Search: cari kombinasi α dan β terbaik (MAPE terendah)
- * α dari 0.1 sampai 0.9 (step 0.1)
- * β dari 0.1 sampai 0.9 (step 0.1)
+ * α dari 0.05 sampai 0.95 (step 0.05)
+ * β dari 0.05 sampai 0.95 (step 0.05)
  */
 export interface DESResult {
   forecasts: (number | null)[];
@@ -102,9 +122,11 @@ export interface DESResult {
   trends: (number | null)[];
   bestAlpha: number;
   bestBeta: number;
-  mape: number;
+  mape: number | null;
+  mad: number | null;
+  mse: number | null;
   nextForecast: number;
-  weeklyForecasts: number[]; // forecast per hari untuk 7 hari ke depan
+  weeklyForecasts: number[];
 }
 
 export function doubleExponentialSmoothing(data: number[]): DESResult {
@@ -114,7 +136,9 @@ export function doubleExponentialSmoothing(data: number[]): DESResult {
     trends: [],
     bestAlpha: 0.1,
     bestBeta: 0.1,
-    mape: 0,
+    mape: null,
+    mad: null,
+    mse: null,
     nextForecast: 0,
     weeklyForecasts: [],
   };
@@ -139,15 +163,14 @@ export function doubleExponentialSmoothing(data: number[]): DESResult {
   let bestLevels: (number | null)[] = [];
   let bestTrends: (number | null)[] = [];
 
-  // Grid search α = 0.1 to 0.9, β = 0.1 to 0.9
+  // Two-phase grid search untuk performa optimal:
+  // Phase 1: scan kasar step 0.1 (81 kombinasi)
   for (let a = 1; a <= 9; a++) {
     const alpha = a / 10;
     for (let b = 1; b <= 9; b++) {
       const beta = b / 10;
-
       const { forecasts, levels, trends } = computeDES(data, alpha, beta);
-      const mape = calculateMAPE(data, forecasts);
-
+      const { mape } = calculateMetrics(data, forecasts);
       if (mape < bestMAPE) {
         bestMAPE = mape;
         bestAlpha = alpha;
@@ -159,6 +182,31 @@ export function doubleExponentialSmoothing(data: number[]): DESResult {
     }
   }
 
+  // Phase 2: refine di sekitar best α/β dengan step 0.05 (±0.1 range)
+  const aMin = Math.max(1, Math.round(bestAlpha * 20) - 2);
+  const aMax = Math.min(19, Math.round(bestAlpha * 20) + 2);
+  const bMin = Math.max(1, Math.round(bestBeta * 20) - 2);
+  const bMax = Math.min(19, Math.round(bestBeta * 20) + 2);
+  for (let a = aMin; a <= aMax; a++) {
+    const alpha = a / 20;
+    for (let b = bMin; b <= bMax; b++) {
+      const beta = b / 20;
+      const { forecasts, levels, trends } = computeDES(data, alpha, beta);
+      const { mape } = calculateMetrics(data, forecasts);
+      if (mape < bestMAPE) {
+        bestMAPE = mape;
+        bestAlpha = alpha;
+        bestBeta = beta;
+        bestForecasts = forecasts;
+        bestLevels = levels;
+        bestTrends = trends;
+      }
+    }
+  }
+
+  // Hitung metrik final dengan parameter terbaik
+  const finalMetrics = calculateMetrics(data, bestForecasts);
+
   // Hitung forecast untuk periode berikutnya menggunakan nilai Level & Trend terakhir
   // F(t+m) = Lt + m·Tt  (Holt's m-step ahead forecast)
   const lastLevel = bestLevels[bestLevels.length - 1];
@@ -168,13 +216,14 @@ export function doubleExponentialSmoothing(data: number[]): DESResult {
   let nextForecast = 0;
 
   if (lastLevel !== null && lastTrend !== null) {
-    // 7 hari ke depan: m = 1, 2, ..., 7
     for (let m = 1; m <= 7; m++) {
       const fwd = Math.max(0, Math.round(lastLevel + m * lastTrend));
       weeklyForecasts.push(fwd);
     }
-    nextForecast = weeklyForecasts[0]; // hari pertama = besok
+    nextForecast = weeklyForecasts[0];
   }
+
+  const round2 = (v: number) => Math.round(v * 100) / 100;
 
   return {
     forecasts: bestForecasts,
@@ -182,7 +231,9 @@ export function doubleExponentialSmoothing(data: number[]): DESResult {
     trends: bestTrends,
     bestAlpha,
     bestBeta,
-    mape: bestMAPE === Infinity ? 0 : Math.round(bestMAPE * 100) / 100,
+    mape: isFinite(finalMetrics.mape) ? round2(finalMetrics.mape) : null,
+    mad: isFinite(finalMetrics.mad) ? round2(finalMetrics.mad) : null,
+    mse: isFinite(finalMetrics.mse) ? round2(finalMetrics.mse) : null,
     nextForecast,
     weeklyForecasts,
   };
@@ -191,15 +242,18 @@ export function doubleExponentialSmoothing(data: number[]): DESResult {
 export interface PredictionResult {
   productId: string;
   productName: string;
+  rank: number;
+  totalSales: number;
   tomorrowPrediction: number;
   weeklyPrediction: number;
   weeklyForecasts: number[];
   recommendedProduction: number;
   bestAlpha: number;
   bestBeta: number;
-  mape: number;
+  mape: number | null;
+  mad: number | null;
+  mse: number | null;
   historicalData: Array<{ date: string; sales: number }>;
   predictionData: Array<{ date: string; sales: number; predicted?: boolean }>;
-  /** Detail perhitungan step-by-step */
   calculationDetails: DESStepDetail[];
 }

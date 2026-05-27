@@ -113,7 +113,7 @@ export function SalesInputForm({ onSave, transactions }: SalesInputFormProps) {
             <Label>Produk</Label>
             <Select
               onValueChange={setSelectedProductId}
-              value={selectedProductId}
+              value={selectedProductId === "" ? undefined : selectedProductId}
             >
               <SelectTrigger className="cursor-pointer">
                 <SelectValue placeholder="Pilih Produk" />

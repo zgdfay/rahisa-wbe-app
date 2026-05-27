@@ -17,7 +17,7 @@ import {
   doubleExponentialSmoothing,
   DESStepDetail,
 } from "../components/predictionUtils";
-import { Transaction, PRODUCTS } from "../../sales/components/types";
+import { Transaction } from "../../sales/components/types";
 
 export default function PredictionDetailPage() {
   const params = useParams();
@@ -26,22 +26,14 @@ export default function PredictionDetailPage() {
 
   const [productName, setProductName] = useState<string>("");
   const [details, setDetails] = useState<DESStepDetail[]>([]);
-  const [mape, setMape] = useState<number>(0);
+  const [mape, setMape] = useState<number | null>(null);
+  const [mad, setMad] = useState<number | null>(null);
+  const [mse, setMse] = useState<number | null>(null);
   const [bestAlpha, setBestAlpha] = useState<number>(0);
   const [bestBeta, setBestBeta] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ... useEffect logic remains the same
   useEffect(() => {
-    // Find the product
-    const product = PRODUCTS.find((p) => p.id === productId);
-    if (!product) {
-      router.push("/predictions");
-      return;
-    }
-    setProductName(product.name);
-
-    // Fetch data from server
     const load = async () => {
       try {
         const res = await fetch("/api/sales");
@@ -50,6 +42,14 @@ export default function PredictionDetailPage() {
           return;
         }
         const loadedTransactions: Transaction[] = await res.json();
+
+        // Find product name from transaction data
+        const matchingTrx = loadedTransactions.find((t) => t.productId === productId);
+        if (!matchingTrx) {
+          router.push("/predictions");
+          return;
+        }
+        setProductName(matchingTrx.productName);
 
         // Group sales by date for this product
         const salesByDate: { [date: string]: number } = {};
@@ -67,13 +67,11 @@ export default function PredictionDetailPage() {
 
       const firstDate = new Date(datesList[0]);
       const lastDate = new Date(datesList[datesList.length - 1]);
-      const today = new Date();
-      const targetLastDate = today > lastDate ? today : lastDate;
 
       const continuousDates: string[] = [];
       for (
         let d = new Date(firstDate);
-        d <= targetLastDate;
+        d <= lastDate;
         d.setDate(d.getDate() + 1)
       ) {
         const dateStr = d.toLocaleDateString("en-CA");
@@ -87,17 +85,31 @@ export default function PredictionDetailPage() {
 
       // Map to table details
       const calculationDetails: DESStepDetail[] = continuousDates.map(
-        (date, index) => ({
-          date,
-          actual: salesData[index],
-          level: desResult.levels[index],
-          trend: desResult.trends[index],
-          forecast: desResult.forecasts[index],
-        }),
+        (date, index) => {
+          const actual = salesData[index];
+          const forecast = desResult.forecasts[index];
+          const error = forecast !== null ? actual - forecast : null;
+          const absError = error !== null ? Math.abs(error) : null;
+          const pctError = error !== null && actual !== 0
+            ? (Math.abs(error) / actual) * 100
+            : null;
+          return {
+            date,
+            actual,
+            level: desResult.levels[index],
+            trend: desResult.trends[index],
+            forecast,
+            error,
+            absError,
+            pctError,
+          };
+        },
       );
 
       setDetails(calculationDetails);
       setMape(desResult.mape);
+      setMad(desResult.mad);
+      setMse(desResult.mse);
       setBestAlpha(desResult.bestAlpha);
       setBestBeta(desResult.bestBeta);
       } catch (e) {
@@ -114,10 +126,13 @@ export default function PredictionDetailPage() {
     if (details.length === 0) return;
 
     // Header parameters
-    const paramsRow = `Parameter Alpha (α): ${bestAlpha}, Parameter Beta (β): ${bestBeta}, MAPE: ${mape}%\n\n`;
+    const mapeStr = mape !== null ? `${mape}%` : "N/A";
+    const madStr = mad !== null ? `${mad}` : "N/A";
+    const mseStr = mse !== null ? `${mse}` : "N/A";
+    const paramsRow = `Parameter Alpha (α): ${bestAlpha}, Parameter Beta (β): ${bestBeta}, MAPE: ${mapeStr}, MAD: ${madStr}, MSE: ${mseStr}\n\n`;
 
     // Header columns
-    const headers = ["Tanggal", "Aktual", "Level", "Trend", "Forecast"];
+    const headers = ["Tanggal", "Aktual", "Level", "Trend", "Forecast", "Error", "|Error|", "% Error"];
 
     // Data rows
     const rows = details.map((d) => [
@@ -126,6 +141,9 @@ export default function PredictionDetailPage() {
       d.level !== null ? d.level.toFixed(2) : "-",
       d.trend !== null ? d.trend.toFixed(2) : "-",
       d.forecast !== null ? d.forecast.toFixed(2) : "-",
+      d.error !== null ? d.error.toFixed(2) : "-",
+      d.absError !== null ? d.absError.toFixed(2) : "-",
+      d.pctError !== null ? d.pctError.toFixed(2) + "%" : "-",
     ]);
 
     // Construct CSV
@@ -158,15 +176,19 @@ export default function PredictionDetailPage() {
 
   // Determine MAPE badge color
   let mapeInfo = {
-    label: "Sangat Akurat",
-    color: "bg-green-100 text-green-700",
+    label: "N/A",
+    color: "bg-gray-100 text-gray-700",
   };
-  if (mape > 10 && mape <= 20) {
-    mapeInfo = { label: "Baik", color: "bg-blue-100 text-blue-700" };
-  } else if (mape > 20 && mape <= 50) {
-    mapeInfo = { label: "Cukup", color: "bg-yellow-100 text-yellow-700" };
-  } else if (mape > 50) {
-    mapeInfo = { label: "Kurang Akurat", color: "bg-red-100 text-red-700" };
+  if (mape !== null) {
+    if (mape <= 10) {
+      mapeInfo = { label: "Sangat Akurat", color: "bg-green-100 text-green-700" };
+    } else if (mape <= 20) {
+      mapeInfo = { label: "Baik", color: "bg-blue-100 text-blue-700" };
+    } else if (mape <= 50) {
+      mapeInfo = { label: "Cukup", color: "bg-yellow-100 text-yellow-700" };
+    } else {
+      mapeInfo = { label: "Kurang Akurat", color: "bg-red-100 text-red-700" };
+    }
   }
 
   return (
@@ -215,7 +237,7 @@ export default function PredictionDetailPage() {
               </CardDescription>
             </div>
             {details.length > 0 && (
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge
                   variant="outline"
                   className={`${mapeInfo.color} border-0 text-xs py-1 px-3`}
@@ -223,17 +245,23 @@ export default function PredictionDetailPage() {
                   {mapeInfo.label}
                 </Badge>
                 <div className="text-xs font-mono bg-white px-3 py-1.5 rounded-lg border border-primary-100 text-gray-600 shadow-sm">
-                  MAPE: <span className="font-bold text-gray-900">{mape}%</span>
+                  MAPE: <span className="font-bold text-gray-900">{mape !== null ? `${mape}%` : "N/A"}</span>
+                </div>
+                <div className="text-xs font-mono bg-white px-3 py-1.5 rounded-lg border border-primary-100 text-gray-600 shadow-sm">
+                  MAD: <span className="font-bold text-gray-900">{mad !== null ? mad : "N/A"}</span>
+                </div>
+                <div className="text-xs font-mono bg-white px-3 py-1.5 rounded-lg border border-primary-100 text-gray-600 shadow-sm">
+                  MSE: <span className="font-bold text-gray-900">{mse !== null ? mse : "N/A"}</span>
                 </div>
                 <div className="text-xs font-mono bg-white px-3 py-1.5 rounded-lg border border-primary-100 text-gray-600 shadow-sm">
                   α:{" "}
                   <span className="font-bold text-gray-900">
-                    {bestAlpha.toFixed(1)}
+                    {bestAlpha}
                   </span>
                   {" | "}
                   β:{" "}
                   <span className="font-bold text-gray-900">
-                    {bestBeta.toFixed(1)}
+                    {bestBeta}
                   </span>
                 </div>
               </div>

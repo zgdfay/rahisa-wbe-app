@@ -2,17 +2,102 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
-import { Transaction, PRODUCTS } from "../sales/components/types";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AlertCircle, Trophy, LayoutGrid } from "lucide-react";
+import { Transaction } from "../sales/components/types";
 import { PredictionCard } from "./components/PredictionCard";
 import {
   doubleExponentialSmoothing,
   PredictionResult,
 } from "./components/predictionUtils";
 
+function buildPrediction(
+  productId: string,
+  productName: string,
+  rank: number,
+  total: number,
+  salesByDate: Record<string, number>,
+): PredictionResult | null {
+  const datesList = Object.keys(salesByDate).sort();
+  if (datesList.length === 0) return null;
+
+  const firstDate = new Date(datesList[0]);
+  const lastDate = new Date(datesList[datesList.length - 1]);
+
+  const continuousDates: string[] = [];
+  for (
+    let d = new Date(firstDate);
+    d <= lastDate;
+    d.setDate(d.getDate() + 1)
+  ) {
+    continuousDates.push(d.toLocaleDateString("en-CA"));
+  }
+
+  const salesData = continuousDates.map((date) => salesByDate[date] || 0);
+  const desResult = doubleExponentialSmoothing(salesData);
+
+  const tomorrowPrediction = desResult.nextForecast;
+  const weeklyPrediction = desResult.weeklyForecasts.reduce((a, b) => a + b, 0);
+
+  const historicalData = continuousDates.map((date, i) => ({
+    date,
+    sales: salesData[i],
+  }));
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toLocaleDateString("en-CA");
+
+  const chartHistory = historicalData.slice(-60);
+  const predictionData = [
+    ...chartHistory,
+    { date: tomorrowStr, sales: tomorrowPrediction, predicted: true },
+  ];
+
+  const calculationDetails = continuousDates.map((date, index) => {
+    const actual = salesData[index];
+    const forecast = desResult.forecasts[index];
+    const error = forecast !== null ? actual - forecast : null;
+    const absError = error !== null ? Math.abs(error) : null;
+    const pctError =
+      error !== null && actual !== 0
+        ? (Math.abs(error) / actual) * 100
+        : null;
+    return {
+      date,
+      actual,
+      level: desResult.levels[index],
+      trend: desResult.trends[index],
+      forecast,
+      error,
+      absError,
+      pctError,
+    };
+  });
+
+  return {
+    productId,
+    productName,
+    rank,
+    totalSales: total,
+    tomorrowPrediction,
+    weeklyPrediction,
+    weeklyForecasts: desResult.weeklyForecasts,
+    recommendedProduction: Math.round(tomorrowPrediction * 1.2),
+    bestAlpha: desResult.bestAlpha,
+    bestBeta: desResult.bestBeta,
+    mape: desResult.mape,
+    mad: desResult.mad,
+    mse: desResult.mse,
+    historicalData,
+    predictionData,
+    calculationDetails,
+  };
+}
+
 export default function PredictionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [predictions, setPredictions] = useState<PredictionResult[]>([]);
+  const [allPredictions, setAllPredictions] = useState<PredictionResult[]>([]);
   const [isCalculating, startTransition] = useTransition();
 
   useEffect(() => {
@@ -24,111 +109,43 @@ export default function PredictionsPage() {
         setTransactions(loadedTransactions);
 
         startTransition(() => {
-          // Build all sales buckets in one pass to avoid repeating filters for each product.
           const salesBuckets = new Map<string, Record<string, number>>();
+          const productNames = new Map<string, string>();
+          const totalSales = new Map<string, number>();
+
           for (const trx of loadedTransactions) {
             if (trx.status !== "completed") continue;
             const bucket = salesBuckets.get(trx.productId) ?? {};
             bucket[trx.date] = (bucket[trx.date] || 0) + trx.quantity;
             salesBuckets.set(trx.productId, bucket);
+            if (!productNames.has(trx.productId)) {
+              productNames.set(trx.productId, trx.productName);
+            }
+            totalSales.set(
+              trx.productId,
+              (totalSales.get(trx.productId) || 0) + trx.quantity,
+            );
           }
 
-          // Calculate predictions for each product
-          const productPredictions = PRODUCTS.map((product) => {
-            const salesByDate = salesBuckets.get(product.id) ?? {};
+          // Sort all products by total sales descending
+          const sortedIds = [...totalSales.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .map(([id]) => id);
 
-            // Get continuous dates from the first sale up to today
-            const datesList = Object.keys(salesByDate).sort();
-            if (datesList.length === 0) {
-              return {
-                productId: product.id,
-                productName: product.name,
-                tomorrowPrediction: 0,
-                weeklyPrediction: 0,
-                weeklyForecasts: [] as number[],
-                recommendedProduction: 0,
-                bestAlpha: 0.1,
-                bestBeta: 0.1,
-                mape: 0,
-                historicalData: [],
-                predictionData: [],
-                calculationDetails: [],
-              };
-            }
+          const results: PredictionResult[] = [];
+          for (let i = 0; i < sortedIds.length; i++) {
+            const pid = sortedIds[i];
+            const pred = buildPrediction(
+              pid,
+              productNames.get(pid) || pid,
+              i + 1,
+              totalSales.get(pid) || 0,
+              salesBuckets.get(pid)!,
+            );
+            if (pred) results.push(pred);
+          }
 
-            const firstDate = new Date(datesList[0]);
-            const lastDate = new Date(datesList[datesList.length - 1]);
-            // Use today as the last date if the last sale was before today
-            const today = new Date();
-            const targetLastDate = today > lastDate ? today : lastDate;
-
-            const continuousDates: string[] = [];
-            for (
-              let d = new Date(firstDate);
-              d <= targetLastDate;
-              d.setDate(d.getDate() + 1)
-            ) {
-              const dateStr = d.toLocaleDateString("en-CA");
-              continuousDates.push(dateStr);
-            }
-
-            const salesData = continuousDates.map((date) => salesByDate[date] || 0);
-
-            // Apply Double Exponential Smoothing with grid search on ALL data
-            const desResult = doubleExponentialSmoothing(salesData);
-
-            // Predict tomorrow (next value from best α/β)
-            const tomorrowPrediction = desResult.nextForecast;
-
-            // Predict weekly: jumlahkan 7 hari ke depan (F(t+m) = Lt + m·Tt)
-            const weeklyPrediction = desResult.weeklyForecasts.reduce((a, b) => a + b, 0);
-
-            // Recommended production = besok + 20% buffer
-            const recommendedProduction = Math.round(tomorrowPrediction * 1.2);
-
-            // Prepare historical data for chart (can show all or just recent)
-            const historicalData = continuousDates.map((date, index) => ({
-              date,
-              sales: salesData[index],
-            }));
-
-            // Prepare prediction data (historical + tomorrow)
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            const tomorrowStr = tomorrow.toLocaleDateString("en-CA");
-
-            // Keep the chart compact so the page stays responsive.
-            const chartHistory = historicalData.slice(-60);
-            const predictionData = [
-              ...chartHistory,
-              { date: tomorrowStr, sales: tomorrowPrediction, predicted: true },
-            ];
-
-            // Prepare calculation details table data
-            const calculationDetails = continuousDates.map((date, index) => ({
-              date,
-              actual: salesData[index],
-              level: desResult.levels[index],
-              trend: desResult.trends[index],
-              forecast: desResult.forecasts[index],
-            }));
-
-            return {
-              productId: product.id,
-              productName: product.name,
-              tomorrowPrediction,
-              weeklyPrediction,
-              weeklyForecasts: desResult.weeklyForecasts,
-              recommendedProduction,
-              bestAlpha: desResult.bestAlpha,
-              bestBeta: desResult.bestBeta,
-              mape: desResult.mape,
-              historicalData,
-              predictionData,
-              calculationDetails,
-            };
-          });
-          setPredictions(productPredictions);
+          setAllPredictions(results);
         });
       } catch (e) {
         console.error("Failed to load transactions for predictions", e);
@@ -138,15 +155,16 @@ export default function PredictionsPage() {
     load();
   }, []);
 
+  const top10 = allPredictions.slice(0, 10);
+
   return (
-    <div className="space-y-10 animate-fade-in">
-      {/* Header */}
+    <div className="space-y-8 animate-fade-in">
       <div>
         <h1 className="text-3xl font-bold text-primary-900">
           Prediksi Penjualan
         </h1>
         <p className="text-muted mt-1">
-          Hasil perhitungan sistem menggunakan Double Exponential Smoothing
+          Hasil perhitungan Double Exponential Smoothing
         </p>
       </div>
 
@@ -169,7 +187,6 @@ export default function PredictionsPage() {
         </Card>
       )}
 
-      {/* Predictions Grid */}
       {isCalculating && (
         <Card>
           <CardContent className="p-8 text-center text-muted">
@@ -177,13 +194,8 @@ export default function PredictionsPage() {
           </CardContent>
         </Card>
       )}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {predictions.map((prediction) => (
-          <PredictionCard key={prediction.productId} prediction={prediction} />
-        ))}
-      </div>
 
-      {!isCalculating && predictions.length === 0 && (
+      {!isCalculating && allPredictions.length === 0 && (
         <Card>
           <CardContent className="p-12 text-center">
             <p className="text-muted">
@@ -193,6 +205,43 @@ export default function PredictionsPage() {
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {allPredictions.length > 0 && (
+        <Tabs defaultValue="top10">
+          <TabsList>
+            <TabsTrigger value="top10" className="gap-1.5">
+              <Trophy className="w-3.5 h-3.5" />
+              10 Terlaris
+            </TabsTrigger>
+            <TabsTrigger value="all" className="gap-1.5">
+              <LayoutGrid className="w-3.5 h-3.5" />
+              Semua Produk ({allPredictions.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="top10" className="mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {top10.map((prediction) => (
+                <PredictionCard
+                  key={prediction.productId}
+                  prediction={prediction}
+                />
+              ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="all" className="mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {allPredictions.map((prediction) => (
+                <PredictionCard
+                  key={prediction.productId}
+                  prediction={prediction}
+                />
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );

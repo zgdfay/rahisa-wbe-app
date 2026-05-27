@@ -54,6 +54,15 @@ export function PredictionTable({ details }: PredictionTableProps) {
               <TableHead className="text-right font-semibold text-xs py-3 px-4 border-l border-gray-100 text-primary-700">
                 Forecast
               </TableHead>
+              <TableHead className="text-right font-semibold text-xs py-3 px-4 border-l border-gray-100">
+                Error
+              </TableHead>
+              <TableHead className="text-right font-semibold text-xs py-3 px-4 border-l border-gray-100">
+                |Error|
+              </TableHead>
+              <TableHead className="text-right font-semibold text-xs py-3 px-4 border-l border-gray-100">
+                % Error
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -73,6 +82,15 @@ export function PredictionTable({ details }: PredictionTableProps) {
                 </TableCell>
                 <TableCell className="text-right text-xs font-semibold text-primary-700 py-3 px-4 border-l border-gray-50 bg-primary-50/10">
                   {row.forecast !== null ? row.forecast.toFixed(2) : "-"}
+                </TableCell>
+                <TableCell className="text-right text-xs text-gray-600 py-3 px-4 border-l border-gray-50">
+                  {row.error !== null ? row.error.toFixed(2) : "-"}
+                </TableCell>
+                <TableCell className="text-right text-xs text-gray-600 py-3 px-4 border-l border-gray-50">
+                  {row.absError !== null ? row.absError.toFixed(2) : "-"}
+                </TableCell>
+                <TableCell className="text-right text-xs text-gray-600 py-3 px-4 border-l border-gray-50">
+                  {row.pctError !== null ? row.pctError.toFixed(2) + "%" : "-"}
                 </TableCell>
               </TableRow>
             ))}
