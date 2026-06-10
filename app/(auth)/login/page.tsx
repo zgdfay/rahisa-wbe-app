@@ -9,20 +9,79 @@ export default function LoginPage() {
 
   const slides = [
     {
-      image: "/images/1.jpg",
+      image: "/hero-web/1.webp",
       title: "Kualitas Premium",
       description: "Bahan pilihan terbaik untuk cita rasa istimewa",
     },
     {
-      image: "/images/2.jpg",
+      image: "/hero-web/2.webp",
       title: "Signature Pastry",
-      description:
-        "Dibuat dengan mentega premium untuk lapisan yang flaky dan gurih.",
+      description: "Dibuat dengan mentega premium untuk lapisan yang flaky dan gurih.",
     },
     {
-      image: "/images/3.jpg",
+      image: "/hero-web/3.webp",
       title: "Fresh Every Day",
       description: "Dipanggang setiap hari dengan penuh cinta",
+    },
+    {
+      image: "/hero-web/4.webp",
+      title: "Rasa Otentik",
+      description: "Menghadirkan kelezatan asli di setiap gigitan",
+    },
+    {
+      image: "/hero-web/5.webp",
+      title: "Tekstur Sempurna",
+      description: "Kelembutan yang meleleh di mulut Anda",
+    },
+    {
+      image: "/hero-web/6.webp",
+      title: "Cita Rasa Klasik",
+      description: "Kombinasi resep tradisional dengan sentuhan modern",
+    },
+    {
+      image: "/hero-web/7.webp",
+      title: "Inovasi Rasa",
+      description: "Eksplorasi rasa baru untuk pengalaman tak terlupakan",
+    },
+    {
+      image: "/hero-web/8.webp",
+      title: "Manis & Gurih",
+      description: "Keseimbangan rasa yang memanjakan lidah",
+    },
+    {
+      image: "/hero-web/9.webp",
+      title: "Cemilan Favorit",
+      description: "Teman sempurna untuk secangkir kopi atau teh Anda",
+    },
+    {
+      image: "/hero-web/10.webp",
+      title: "Lezat Bergizi",
+      description: "Dibuat dengan bahan alami berkualitas tinggi",
+    },
+    {
+      image: "/hero-web/11.webp",
+      title: "Aroma Memikat",
+      description: "Wangi mentega yang menggugah selera",
+    },
+    {
+      image: "/hero-web/12.webp",
+      title: "Resep Warisan",
+      description: "Kelezatan turun-temurun yang selalu terjaga",
+    },
+    {
+      image: "/hero-web/13.webp",
+      title: "Pilihan Terbaik",
+      description: "Hanya menyajikan yang terbaik untuk pelanggan setia",
+    },
+    {
+      image: "/hero-web/14.webp",
+      title: "Selalu Segar",
+      description: "Diolah dengan standar kebersihan tertinggi",
+    },
+    {
+      image: "/hero-web/15.webp",
+      title: "Kelezatan Tiada Tara",
+      description: "Nikmati setiap momen dengan sajian istimewa kami",
     },
   ];
 

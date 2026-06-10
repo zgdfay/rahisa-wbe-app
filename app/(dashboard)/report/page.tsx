@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Download, Upload, TrendingUp, BarChart3, Printer } from "lucide-react";
+import { Download, Upload, TrendingUp, BarChart3, Printer, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 import { Transaction } from "../sales/components/types";
@@ -37,6 +37,8 @@ export default function ReportPage() {
   const [salesData, setSalesData] = useState<Transaction[]>([]);
   const [activeTab, setActiveTab] = useState("sales");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -79,6 +81,13 @@ export default function ReportPage() {
           });
           return monthStr === selectedMonth;
         });
+
+  // --- Pagination Logic ---
+  const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
+  const paginatedSales = filteredSales.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   // --- Export Logic ---
   const downloadCSV = (data: any[], filename: string) => {
@@ -332,7 +341,10 @@ export default function ReportPage() {
             </span>
             <Select
               value={selectedMonth}
-              onValueChange={(val) => setSelectedMonth(val)}
+              onValueChange={(val) => {
+                setSelectedMonth(val);
+                setCurrentPage(1);
+              }}
             >
               <SelectTrigger className="w-[150px] h-8 border-0 bg-transparent focus:ring-0 focus:ring-offset-0 font-semibold text-sm text-primary-900 shadow-none px-2 ring-offset-0">
                 <SelectValue placeholder="Pilih Periode" />
@@ -445,8 +457,8 @@ export default function ReportPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredSales.length > 0 ? (
-                      filteredSales.map((t) => (
+                    {paginatedSales.length > 0 ? (
+                      paginatedSales.map((t) => (
                         <TableRow key={t.id}>
                           <TableCell className="font-medium text-gray-600">
                             {t.date}{" "}
@@ -485,6 +497,58 @@ export default function ReportPage() {
                     )}
                   </TableBody>
                 </Table>
+              </div>
+
+              {/* Pagination Controls */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden">
+                <div className="text-sm text-gray-500">
+                  Menampilkan <span className="font-medium">{paginatedSales.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}</span> - <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredSales.length)}</span> dari <span className="font-medium">{filteredSales.length}</span> transaksi
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500">Per halaman:</span>
+                    <Select
+                      value={itemsPerPage.toString()}
+                      onValueChange={(val) => {
+                        setItemsPerPage(Number(val));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="w-[70px] h-8">
+                        <SelectValue placeholder="10" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="h-8 w-8"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <div className="text-sm font-medium w-12 text-center">
+                      {currentPage} / {Math.max(1, totalPages)}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage >= totalPages || totalPages === 0}
+                      className="h-8 w-8"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
