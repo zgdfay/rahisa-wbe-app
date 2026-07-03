@@ -16,8 +16,9 @@ interface Transaction {
 
 export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [userName, setUserName] = useState("Admin");
 
-  // Load transactions from localStorage on mount
+  // Load transactions and user session on mount
   useEffect(() => {
     const load = async () => {
       try {
@@ -31,6 +32,24 @@ export default function DashboardPage() {
     };
 
     load();
+
+    const timer = setTimeout(() => {
+      try {
+        const session = localStorage.getItem("user_session");
+        if (session) {
+          const parsed = JSON.parse(session);
+          if (parsed.name) {
+            setUserName(parsed.name);
+          } else if (parsed.role === "kasir") {
+            setUserName("Kasir Rahisa");
+          }
+        }
+      } catch (e) {
+        console.error("Failed to parse user session", e);
+      }
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const currentHour = new Date().getHours();
@@ -48,7 +67,7 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold text-primary-900">
-            {greeting}, Admin!
+            {greeting}, {userName}!
           </h1>
           <p className="text-muted mt-1">
             Pantau performa Rahisa Bakery & Cafe hari ini.

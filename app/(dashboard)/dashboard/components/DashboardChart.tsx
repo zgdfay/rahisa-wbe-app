@@ -63,7 +63,22 @@ export function DashboardChart({ transactions }: DashboardChartProps) {
     });
 
     if (activeFilter === "range") {
-      const today = new Date();
+      let today = new Date();
+      // Make the chart show data relative to the latest transaction date if available
+      if (transactions.length > 0) {
+        const latestDateStr = transactions
+          .map((t) => t.date)
+          .filter(Boolean)
+          .sort()
+          .pop();
+        if (latestDateStr) {
+          const latestDate = new Date(latestDateStr);
+          if (!isNaN(latestDate.getTime())) {
+            today = latestDate;
+          }
+        }
+      }
+
       let daysToSubtract = 7;
       if (selectedRange === "14d") daysToSubtract = 14;
       if (selectedRange === "30d") daysToSubtract = 30;
@@ -97,7 +112,7 @@ export function DashboardChart({ transactions }: DashboardChartProps) {
   const chartConfig = {
     revenue: {
       label: "Pendapatan",
-      color: "var(--primary-500)",
+      color: "#8b4513", // Primary 500
     },
   } satisfies ChartConfig;
 
@@ -203,12 +218,12 @@ export function DashboardChart({ transactions }: DashboardChartProps) {
               >
                 <stop
                   offset="5%"
-                  stopColor="var(--color-revenue)"
+                  stopColor="#8b4513"
                   stopOpacity={0.8}
                 />
                 <stop
                   offset="95%"
-                  stopColor="var(--color-revenue)"
+                  stopColor="#8b4513"
                   stopOpacity={0.1}
                 />
               </linearGradient>
@@ -247,7 +262,8 @@ export function DashboardChart({ transactions }: DashboardChartProps) {
               dataKey="revenue"
               type="monotone"
               fill="url(#fillRevenueDashboard)"
-              stroke="var(--color-revenue)"
+              stroke="#8b4513"
+              strokeWidth={2}
               stackId="a"
             />
           </AreaChart>

@@ -35,7 +35,11 @@ npm run lint     # Run ESLint
 
 Auth is handled via two mechanisms:
 - **Cookie** (`auth_token`): Set by login form, checked by route protection middleware (`proxy.ts`)
-- **localStorage** (`user_session`): Stores email, role, loginTime
+- **localStorage** (`user_session`): Stores email, role, name, loginTime
+
+Demo accounts supported in `components/forms/LoginForm.tsx`:
+- **Admin**: `admin@rahisa.com` | Password: `admin` (Role: `admin`)
+- **Kasir**: `kasir@rahisa.com` | Password: `kasir` (Role: `kasir`)
 
 Protected routes are defined in `lib/proxy.ts` (`PROTECTED_ROUTES` array). Middleware runs in `proxy.ts` at the root — redirects to `/login` if unauthenticated, redirects to `/dashboard` if already logged in.
 

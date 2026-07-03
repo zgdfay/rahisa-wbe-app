@@ -3,8 +3,8 @@
 import {
   ShoppingBag,
   TrendingUp,
-  Layers,
-  CheckCircle2,
+  Package,
+  Receipt,
   ArrowUpRight,
   ArrowDownRight,
 } from "lucide-react";
@@ -14,6 +14,7 @@ interface Transaction {
   id: string;
   date: string;
   totalPrice: number;
+  quantity?: number;
   status: string;
 }
 
@@ -22,15 +23,40 @@ interface DashboardStatsProps {
 }
 
 export function DashboardStats({ transactions }: DashboardStatsProps) {
-  // Calculate today's sales
-  const today = new Date().toLocaleDateString("en-CA");
-  const todaysTransactions = transactions.filter(
-    (t) => t.date === today && t.status === "completed"
+  // Determine the latest transaction date to use as "Today" for demo purposes
+  let todayStr = new Date().toLocaleDateString("en-CA");
+  if (transactions.length > 0) {
+    const latestDateStr = [...transactions]
+      .map((t) => t.date)
+      .filter(Boolean)
+      .sort()
+      .pop();
+    if (latestDateStr) {
+      todayStr = latestDateStr;
+    }
+  }
+
+  const completedTransactions = transactions.filter((t) => t.status === "completed");
+
+  const todaysTransactions = completedTransactions.filter(
+    (t) => t.date === todayStr
   );
+  
   const todaysRevenue = todaysTransactions.reduce(
     (acc, curr) => acc + curr.totalPrice,
     0
   );
+
+  const totalProductsSold = completedTransactions.reduce(
+    (acc, curr) => acc + (curr.quantity || 0),
+    0
+  );
+
+  const avgTransactionValue =
+    completedTransactions.length > 0
+      ? completedTransactions.reduce((acc, curr) => acc + curr.totalPrice, 0) /
+        completedTransactions.length
+      : 0;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -40,37 +66,44 @@ export function DashboardStats({ transactions }: DashboardStatsProps) {
     }).format(amount);
   };
 
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat("id-ID").format(num);
+  };
+
+  // Convert the todayStr to a readable string like "30 Jan"
+  const formattedToday = new Date(todayStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+
   const stats = [
     {
       label: "Penjualan Hari Ini",
       value: formatCurrency(todaysRevenue),
-      description: `${todaysTransactions.length} transaksi hari ini`,
+      description: `${todaysTransactions.length} transaksi tgl ${formattedToday}`,
       icon: ShoppingBag,
-      trend: "+12%", // Placeholder for trend logic
+      trend: "+12%",
       trendUp: true,
     },
     {
       label: "Total Transaksi",
-      value: `${transactions.length} Trx`,
-      description: "Semua waktu",
+      value: `${formatNumber(completedTransactions.length)} Trx`,
+      description: "Transaksi Selesai",
       icon: TrendingUp,
       trend: "+5%",
       trendUp: true,
     },
     {
-      label: "Status Stok Bahan",
-      value: "80% Aman",
-      description: "2 bahan perlu restock",
-      icon: Layers,
-      trend: "Normal",
+      label: "Total Produk Terjual",
+      value: `${formatNumber(totalProductsSold)} Pcs`,
+      description: "Berdasarkan riwayat",
+      icon: Package,
+      trend: "+8%",
       trendUp: true,
     },
     {
-      label: "Efisiensi Produksi",
-      value: "94.2%",
-      description: "Minggu ini",
-      icon: CheckCircle2,
-      trend: "+1.2%",
+      label: "Rata-rata Transaksi",
+      value: formatCurrency(avgTransactionValue),
+      description: "Nilai rata-rata order",
+      icon: Receipt,
+      trend: "+2%",
       trendUp: true,
     },
   ];

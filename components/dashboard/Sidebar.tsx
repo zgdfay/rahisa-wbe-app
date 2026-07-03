@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
@@ -33,9 +34,30 @@ const menuItems = [
   { icon: BarChart3, label: "Laporan", href: "/report" },
 ];
 
+interface UserSession {
+  name?: string;
+  email?: string;
+  role?: string;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [user, setUser] = useState<UserSession | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const session = localStorage.getItem("user_session");
+        if (session) {
+          setUser(JSON.parse(session));
+        }
+      } catch (e) {
+        console.error("Failed to load user session", e);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("user_session");
@@ -99,7 +121,41 @@ export function Sidebar() {
       </nav>
 
       {/* Footer / Logout */}
-      <div className="pt-6 border-t border-primary-50">
+      <div className="pt-6 border-t border-primary-50 space-y-3">
+        {user && (
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-primary-50/60 border border-primary-100/60 shadow-sm transition-all">
+            <div
+              className={cn(
+                "w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shadow-sm text-white flex-shrink-0",
+                user.role === "kasir" ? "bg-emerald-600" : "bg-primary-900",
+              )}
+            >
+              {user.name?.[0]?.toUpperCase() ||
+                user.role?.[0]?.toUpperCase() ||
+                "U"}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-sm font-bold text-primary-900 truncate">
+                  {user.name || "Administrator"}
+                </p>
+                <span
+                  className={cn(
+                    "text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider border flex-shrink-0",
+                    user.role === "kasir"
+                      ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                      : "bg-amber-100 text-amber-800 border-amber-200",
+                  )}
+                >
+                  {user.role || "admin"}
+                </span>
+              </div>
+              <p className="text-xs text-muted truncate mt-0.5">
+                {user.email || "admin@rahisa.com"}
+              </p>
+            </div>
+          </div>
+        )}
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <button className="flex items-center gap-3 w-full p-3 text-muted hover:text-red-600 hover:bg-red-50 rounded-2xl transition-all duration-300 group cursor-pointer">

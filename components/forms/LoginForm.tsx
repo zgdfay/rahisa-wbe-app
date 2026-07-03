@@ -18,26 +18,42 @@ export function LoginForm() {
   const router = useRouter();
 
   // Dummy Credentials
-  const ADMIN_CREDENTIALS = {
-    email: "admin@rahisa.com",
-    password: "admin",
-  };
+  const DUMMY_ACCOUNTS = [
+    {
+      email: "admin@rahisa.com",
+      password: "admin",
+      role: "admin",
+      name: "Administrator",
+      label: "Admin",
+      badge: "bg-amber-100 text-amber-800 border-amber-200",
+    },
+    {
+      email: "kasir@rahisa.com",
+      password: "kasir",
+      role: "kasir",
+      name: "Kasir Rahisa",
+      label: "Kasir",
+      badge: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    },
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     // Validate Credentials
-    if (
-      email === ADMIN_CREDENTIALS.email &&
-      password === ADMIN_CREDENTIALS.password
-    ) {
+    const matchedUser = DUMMY_ACCOUNTS.find(
+      (acc) => acc.email === email && acc.password === password
+    );
+
+    if (matchedUser) {
       // Set session (LocalStorage for Client UI)
       localStorage.setItem(
         "user_session",
         JSON.stringify({
-          email: email,
-          role: "admin",
+          email: matchedUser.email,
+          role: matchedUser.role,
+          name: matchedUser.name,
           isLoggedIn: true,
           loginTime: new Date().toISOString(),
         }),
@@ -48,7 +64,7 @@ export function LoginForm() {
       const expirationDate = new Date(Date.now() + oneDay).toUTCString();
       document.cookie = `auth_token=valid_token; expires=${expirationDate}; path=/; SameSite=Lax`;
 
-      toast.success("Login Berhasil!");
+      toast.success(`Selamat Datang, ${matchedUser.name}!`);
       router.push("/dashboard");
     } else {
       toast.error("Email atau Password salah!");
@@ -133,6 +149,41 @@ export function LoginForm() {
           "Masuk"
         )}
       </Button>
+
+      {/* Demo Credentials Helper */}
+      <div className="pt-4 border-t border-primary-100/60">
+        <p className="text-xs text-center font-medium text-muted mb-3">
+          Akun Demo (Klik untuk mengisi):
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {DUMMY_ACCOUNTS.map((acc) => (
+            <button
+              key={acc.email}
+              type="button"
+              onClick={() => {
+                setEmail(acc.email);
+                setPassword(acc.password);
+                toast.info(`Kredensial ${acc.label} diisi`);
+              }}
+              className="p-2.5 rounded-xl border border-primary-100 bg-primary-50/50 hover:bg-primary-100/70 hover:border-primary-200 transition-all text-left flex flex-col gap-1 cursor-pointer group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs text-primary-900 group-hover:text-primary-950">
+                  {acc.label}
+                </span>
+                <span
+                  className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border ${acc.badge}`}
+                >
+                  {acc.role}
+                </span>
+              </div>
+              <span className="text-[11px] text-muted truncate">
+                {acc.email}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
     </form>
   );
 }

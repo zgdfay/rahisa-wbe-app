@@ -12,9 +12,10 @@ import { SalesTrendChart } from "./components/SalesTrendChart";
 export default function SalesPage() {
   const [activeTab, setActiveTab] = useState("input");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [userRole, setUserRole] = useState("admin");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load transactions from server-side storage on mount
+  // Load transactions and role from client/server storage on mount
   useEffect(() => {
     const loadFromServer = async () => {
       try {
@@ -29,6 +30,20 @@ export default function SalesPage() {
     };
 
     loadFromServer();
+
+    const timer = setTimeout(() => {
+      try {
+        const session = localStorage.getItem("user_session");
+        if (session) {
+          const parsed = JSON.parse(session);
+          if (parsed.role) setUserRole(parsed.role);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const handleSaveTransaction = (newTransaction: Transaction) => {
@@ -109,15 +124,17 @@ export default function SalesPage() {
               }
             }}
           />
-          <Button
-            type="button"
-            onClick={handleResetData}
-            variant="outline"
-            className="gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-          >
-            <Trash2 className="h-4 w-4" />
-            Reset Data
-          </Button>
+          {userRole === "admin" && (
+            <Button
+              type="button"
+              onClick={handleResetData}
+              variant="outline"
+              className="gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+            >
+              <Trash2 className="h-4 w-4" />
+              Reset Data
+            </Button>
+          )}
           <Button
             type="button"
             onClick={() => fileInputRef.current?.click()}

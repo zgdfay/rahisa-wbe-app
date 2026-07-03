@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import * as fs from "fs";
-import * as path from "path";
 import { parseSalesExcel } from "@/lib/excelParser";
-
-const DATA_DIR = path.resolve(process.cwd(), "data");
-const DATA_PATH = path.resolve(DATA_DIR, "sales.json");
+import { supabaseClient, getOrInsertProductId } from "@/utils/supabase/client";
 
 export async function POST(req: Request) {
   try {
@@ -60,22 +56,35 @@ export async function POST(req: Request) {
       };
     });
 
-    // ensure data dir
-    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-
     // Filter out records with invalid dates
     const valid = transformed.filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.date));
 
-    // Merge with existing data (append, don't overwrite)
-    let existing: any[] = [];
-    if (fs.existsSync(DATA_PATH)) {
-      try {
-        existing = JSON.parse(fs.readFileSync(DATA_PATH, "utf-8") || "[]");
-      } catch { }
+    // Batch process products and insert into Supabase
+    const rowsToInsert = [];
+    for (const item of valid) {
+      const productName = item.productName || "Produk";
+      const id_produk = await getOrInsertProductId(supabaseClient, productName);
+
+      const qty = Number(item.quantity || 0);
+      const total = Number(item.totalPrice || 0);
+      const harga = qty > 0 ? total / qty : total;
+
+      rowsToInsert.push({
+        tanggal: item.date,
+        id_produk: id_produk,
+        jumlah_terjual: qty,
+        harga_jual: harga,
+        total_penjualan: total,
+      });
     }
 
-    const merged = [...existing, ...valid];
-    fs.writeFileSync(DATA_PATH, JSON.stringify(merged, null, 2), "utf-8");
+    if (rowsToInsert.length > 0) {
+      const { error } = await supabaseClient.from("penjualan").insert(rowsToInsert);
+      if (error) {
+        console.error("Supabase import insert error:", error);
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+    }
 
     return NextResponse.json({ imported: valid.length });
   } catch (e) {
