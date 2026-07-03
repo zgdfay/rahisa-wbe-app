@@ -7,7 +7,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn("Supabase client keys are not set (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY)");
 }
 
-export const supabaseClient: SupabaseClient = createBrowserClient(supabaseUrl ?? "", supabaseAnonKey ?? "");
+const url = supabaseUrl || "https://nzvewspqkelsuxhqtqgx.supabase.co";
+const key = supabaseAnonKey || "sb_publishable_vYOE6pc_9oLsdieBEuQGpQ_hKnAIp-Y";
+
+export const supabaseClient: SupabaseClient = createBrowserClient(url, key);
 
 export async function getOrInsertProductId(supabase: SupabaseClient, productName: string): Promise<string | null> {
   if (!productName) return null;
