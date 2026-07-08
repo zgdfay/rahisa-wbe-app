@@ -45,7 +45,7 @@ export function SalesInputForm({ onSave, transactions }: SalesInputFormProps) {
       ? selectedProduct.price * parseInt(quantity)
       : 0;
 
-  const handleSaveTransaction = () => {
+  const handleSaveTransaction = async () => {
     if (!selectedProductId || !quantity || parseInt(quantity) <= 0) {
       toast.error("Mohon lengkapi data produk dan jumlah yang valid.");
       return;
@@ -74,18 +74,25 @@ export function SalesInputForm({ onSave, transactions }: SalesInputFormProps) {
     // Reset Form
     setSelectedProductId("");
     setQuantity("");
-    toast.success("Transaksi berhasil disimpan!", {
-      description: `${product.name} - ${quantity} pcs`,
-    });
+
     // Persist to server-side storage
     try {
-      fetch("/api/sales", {
+      const res = await fetch("/api/sales", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newTransaction),
-      }).catch((e) => console.error("Failed to persist transaction", e));
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        toast.error(`Gagal menyimpan ke server: ${errText}`);
+      } else {
+        toast.success("Transaksi berhasil disimpan!", {
+          description: `${product.name} - ${quantity} pcs`,
+        });
+      }
     } catch (e) {
       console.error(e);
+      toast.error("Gagal terhubung ke server saat menyimpan transaksi.");
     }
   };
 

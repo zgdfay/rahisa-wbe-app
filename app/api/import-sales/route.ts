@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { parseSalesExcel } from "@/lib/excelParser";
 import { supabaseClient, getOrInsertProductId } from "@/utils/supabase/client";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   try {
     const form = await req.formData();

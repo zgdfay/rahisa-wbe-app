@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseClient, getOrInsertProductId } from "@/utils/supabase/client";
 
+export const dynamic = "force-dynamic";
+
 interface PenjualanRow {
   id_penjualan?: string;
   tanggal?: string;
