@@ -23,7 +23,8 @@ export async function GET() {
     const { data, error } = await supabaseClient
       .from("penjualan")
       .select("id_penjualan, tanggal, jumlah_terjual, total_penjualan, produk(id_produk, nama_produk)")
-      .order("tanggal", { ascending: false });
+      .order("tanggal", { ascending: false })
+      .range(0, 4999);
 
     if (error) {
       console.error("Supabase GET error:", error);

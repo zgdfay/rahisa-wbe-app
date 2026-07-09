@@ -183,13 +183,28 @@ export function parseSalesExcel(arrayBuffer: ArrayBuffer): SalesRow[] {
     const toNumber = (value: unknown) => {
       if (value === null || value === undefined || value === "") return undefined;
       if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
-      // Handle format Rupiah: "Rp12.000" → 12000
-      const text = String(value)
+      let text = String(value)
         .trim()
         .replace(/rp/gi, "")
-        .replace(/\./g, "")
-        .replace(/,/g, ".")
         .trim();
+
+      if (text.includes(".") && text.includes(",")) {
+        if (text.lastIndexOf(",") > text.lastIndexOf(".")) {
+          text = text.replace(/\./g, "").replace(/,/g, ".");
+        } else {
+          text = text.replace(/,/g, "");
+        }
+      } else if (text.includes(",")) {
+        if (/,\d{3}$/.test(text)) {
+          text = text.replace(/,/g, "");
+        } else {
+          text = text.replace(/,/g, ".");
+        }
+      } else if (text.includes(".")) {
+        if (/\.\d{3}$/.test(text)) {
+          text = text.replace(/\./g, "");
+        }
+      }
       const parsed = Number(text);
       return Number.isFinite(parsed) ? parsed : undefined;
     };
